@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+coverage
+.serverless
+*.js.map
+cdk.out
+.claude/
