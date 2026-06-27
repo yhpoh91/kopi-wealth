@@ -8,6 +8,7 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       exclude: [
         'src/templates/**',
+        'src/types/**',
         'src/lib/ddb.ts',
         'src/lib/auth.ts',
         'src/lib/secrets.ts',
