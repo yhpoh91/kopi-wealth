@@ -8,6 +8,7 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       exclude: [
         'src/templates/**',
+        'src/types/**',
         'src/lib/ddb.ts',
         'src/lib/auth.ts',
         'src/lib/secrets.ts',
@@ -21,9 +22,9 @@ export default defineConfig({
         'coverage/**',
       ],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 90,
+        lines: 95,
+        functions: 95,
+        branches: 95,
       },
     },
   },
