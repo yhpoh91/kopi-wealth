@@ -123,16 +123,18 @@ describe('GET /auth/callback', () => {
     expect((res as { statusCode: number }).statusCode).toBe(302);
   });
 
-  it('updates existing user lastSeenAt', async () => {
+  it('updates existing user lastSeenAt and preserves role', async () => {
     mockGetUser.mockResolvedValue({
       PK: 'USER#sub1', SK: 'USER#sub1', GSI1PK: 'ALL_USERS', GSI1SK: 'USER#sub1',
-      sub: 'sub1', email: 'user@example.com',
+      sub: 'sub1', email: '', role: 'admin' as const,
       createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z',
     });
     const res = await handler(makeEvent(), {} as never, () => {});
     expect(mockPutUser).toHaveBeenCalledOnce();
     const savedUser = mockPutUser.mock.calls[0][0];
     expect(savedUser.lastSeenAt).toBeDefined();
+    expect(savedUser.role).toBe('admin');
+    expect(savedUser.email).toBe('user@example.com');
     expect((res as { statusCode: number }).statusCode).toBe(302);
   });
 
