@@ -11,12 +11,17 @@ vi.mock('../../src/repositories/account', () => ({
   softDelete: vi.fn(),
   putSnapshot: vi.fn(),
 }));
+vi.mock('../../src/lib/fx', () => ({
+  getOrFetchRates: vi.fn(),
+  convertAmount: vi.fn(),
+}));
 
 import { handler } from '../../src/handlers/accounts';
 import { requireSession } from '../../src/lib/auth-middleware';
 import { getUser } from '../../src/repositories/user';
 import { getSettings } from '../../src/repositories/financialSettings';
 import { getAccount, queryByUser, putAccount, updateAccount, softDelete, putSnapshot } from '../../src/repositories/account';
+import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 
 const mockRequireSession = vi.mocked(requireSession);
 const mockGetUser = vi.mocked(getUser);
@@ -27,6 +32,8 @@ const mockPutAccount = vi.mocked(putAccount);
 const mockUpdateAccount = vi.mocked(updateAccount);
 const mockSoftDelete = vi.mocked(softDelete);
 const mockPutSnapshot = vi.mocked(putSnapshot);
+const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
+const mockConvertAmount = vi.mocked(convertAmount);
 
 const auth = { authenticated: true as const, session: { sessionId: 's1', sub: 'sub1', role: undefined as undefined } };
 const user = { PK: 'USER#sub1', SK: 'USER#sub1', GSI1PK: 'ALL_USERS', GSI1SK: 'USER#sub1', sub: 'sub1', email: 'u@e.com', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
@@ -57,6 +64,8 @@ beforeEach(() => {
   mockUpdateAccount.mockResolvedValue(undefined);
   mockSoftDelete.mockResolvedValue(undefined);
   mockPutSnapshot.mockResolvedValue(undefined);
+  mockGetOrFetchRates.mockResolvedValue({});
+  mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : null);
 });
 
 describe('GET /accounts', () => {
@@ -78,31 +87,91 @@ describe('GET /accounts', () => {
 
   it('renders account cards', async () => {
     mockQueryByUser.mockResolvedValue([account]);
+    mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('DBS Savings');
     expect((res as { body: string }).body).toContain('10,000.00');
   });
 
+  it('shows summary bar with total when accounts present', async () => {
+    mockQueryByUser.mockResolvedValue([account]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Total Balance');
+    expect((res as { body: string }).body).toContain('10,000.00');
+  });
+
+  it('hides summary bar when no accounts', async () => {
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).not.toContain('Total Balance');
+  });
+
+  it('shows section header for account type', async () => {
+    mockQueryByUser.mockResolvedValue([account]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Savings');
+  });
+
+  it('shows updated relative time on card', async () => {
+    mockQueryByUser.mockResolvedValue([account]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Updated ');
+  });
+
+  it('shows converted home-currency value for foreign accounts', async () => {
+    const usdAccount = { ...account, currency: 'USD', balance: 1000 };
+    mockQueryByUser.mockResolvedValue([usdAccount]);
+    mockGetOrFetchRates.mockResolvedValue({ USD: 0.74 });
+    mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : 1351.35);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('≈ SGD');
+  });
+
+  it('shows fallback dash when FX conversion unavailable', async () => {
+    const usdAccount = { ...account, currency: 'USD', balance: 1000 };
+    mockQueryByUser.mockResolvedValue([usdAccount]);
+    mockGetOrFetchRates.mockResolvedValue({});
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('≈ SGD —');
+  });
+
+  it('handles FX fetch failure gracefully', async () => {
+    const usdAccount = { ...account, currency: 'USD', balance: 1000 };
+    mockQueryByUser.mockResolvedValue([usdAccount]);
+    mockGetOrFetchRates.mockRejectedValue(new Error('network error'));
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 200 });
+    expect((res as { body: string }).body).toContain('(partial)');
+  });
+
   it('escapes XSS in account name', async () => {
     mockQueryByUser.mockResolvedValue([{ ...account, name: '<script>alert(1)</script>' }]);
+    mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).not.toContain('<script>alert(1)</script>');
   });
 
   it('shows institution when present', async () => {
     mockQueryByUser.mockResolvedValue([{ ...account, institution: 'DBS' }]);
+    mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('DBS');
   });
 
   it('shows notes on card when present', async () => {
     mockQueryByUser.mockResolvedValue([{ ...account, notes: 'joint account' }]);
+    mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('joint account');
   });
 
   it('renders card without institution', async () => {
     mockQueryByUser.mockResolvedValue([{ ...account, institution: undefined }]);
+    mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('DBS Savings');
   });
@@ -110,6 +179,62 @@ describe('GET /accounts', () => {
   it('shows error banner when error query param present', async () => {
     const res = await handler(makeEvent('GET', '/accounts', undefined, { query: 'error=invalid&name=X&type=savings&currency=SGD&balance=abc' }), {} as never, () => {});
     expect((res as { body: string }).body).toContain('Validation failed');
+  });
+
+  it('shows error banner with empty params when only error present', async () => {
+    const res = await handler(makeEvent('GET', '/accounts', undefined, { query: 'error=invalid_balance' }), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Validation failed');
+  });
+
+  it('shows "yesterday" for accounts updated 1 day ago', async () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString();
+    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: yesterday }]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('yesterday');
+  });
+
+  it('shows "days ago" for accounts updated a few days ago', async () => {
+    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString();
+    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: fiveDaysAgo }]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('days ago');
+  });
+
+  it('shows "months ago" for accounts updated over 30 days ago', async () => {
+    const twoMonthsAgo = new Date(Date.now() - 65 * 86400000).toISOString();
+    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: twoMonthsAgo }]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('months ago');
+  });
+
+  it('shows partial note in type breakdown when FX fails', async () => {
+    const usdAccount = { ...account, id: 'id2', currency: 'USD', balance: 500 };
+    mockQueryByUser.mockResolvedValue([account, usdAccount]);
+    mockGetOrFetchRates.mockRejectedValue(new Error('fail'));
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('partial');
+  });
+
+  it('groups accounts by type with section headers', async () => {
+    const checkingAccount = { ...account, id: 'id2', type: 'checking' as const, name: 'OCBC 360' };
+    mockQueryByUser.mockResolvedValue([account, checkingAccount]);
+    mockConvertAmount.mockReturnValue(10000);
+    const body = (await handler(makeEvent('GET', '/accounts'), {} as never, () => {})) as { body: string };
+    expect(body.body).toContain('Savings');
+    expect(body.body).toContain('Checking');
+    expect(body.body).toContain('DBS Savings');
+    expect(body.body).toContain('OCBC 360');
+  });
+
+  it('shows currency and balance paired in edit panel', async () => {
+    mockQueryByUser.mockResolvedValue([account]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('cursor:not-allowed');
   });
 });
 
