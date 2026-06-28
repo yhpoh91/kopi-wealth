@@ -102,13 +102,32 @@ functions:
           method: POST
           path: /auth/logout
 
+  landing:
+    handler: src/handlers/landing.handler
+    name: wealth-${self:provider.stage}-landing
+    events:
+      - httpApi:
+          method: GET
+          path: /
+
   dashboard:
     handler: src/handlers/dashboard.handler
     name: wealth-${self:provider.stage}-dashboard
     events:
       - httpApi:
           method: GET
-          path: /
+          path: /dashboard
+
+  cpf:
+    handler: src/handlers/cpf.handler
+    name: wealth-${self:provider.stage}-cpf
+    events:
+      - httpApi:
+          method: GET
+          path: /cpf
+      - httpApi:
+          method: POST
+          path: /cpf
 
   accounts:
     handler: src/handlers/accounts.handler
