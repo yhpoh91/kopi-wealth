@@ -114,8 +114,7 @@ kopi-wealth/
 ├── CLAUDE.md            # This file
 ├── MILESTONES.md
 └── .github/workflows/
-    ├── ci.yml           # Typecheck + test (all branches, no AWS)
-    ├── deploy.yml       # CI + deploy to preview (non-main) or prod (main)
+    ├── deploy.yml       # ci job (typecheck + test) → deploy job (AWS deploy); deploy needs ci
     └── migrate.yml      # Manual migration dispatch
 ```
 
