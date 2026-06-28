@@ -6,8 +6,9 @@
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb } from './lib/ddb';
 import * as migration0001 from './migrations/0001_initial';
+import * as migration0002 from './migrations/0002_seed_admin';
 
-const ALL_MIGRATIONS = [migration0001];
+const ALL_MIGRATIONS = [migration0001, migration0002];
 
 const args = process.argv.slice(2);
 const stage = args.find((_, i) => args[i - 1] === '--stage') ?? 'preview';

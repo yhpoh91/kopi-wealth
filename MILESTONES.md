@@ -34,7 +34,7 @@ Covered by M2 — `httpApi` events were already in `serverless.yml` and deploy t
 
 ---
 
-## M4 — SSO Auth ⬜
+## M4 — SSO Auth ✅
 
 Full OIDC PKCE login/callback/logout. Session management (DDB + HttpOnly cookie). JIT user provisioning via kopi-sso.
 
