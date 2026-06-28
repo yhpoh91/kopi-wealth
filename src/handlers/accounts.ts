@@ -191,46 +191,57 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const body = `
     <style>@media(min-width:600px){.acct-grid{grid-template-columns:repeat(3,1fr)!important}}</style>
     <div style="max-width:900px;margin:0 auto">
-      <h2 style="font-size:1.3rem;margin-bottom:1.5rem">Accounts</h2>
-
-      ${errorBanner}
-      <div class="acct-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem;margin-bottom:1.5rem">
-        ${accounts.length === 0 ? `<div style="grid-column:1/-1">${accountCards}</div>` : accountCards}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+        <h2 style="font-size:1.3rem">Accounts</h2>
+        <button type="button" onclick="document.getElementById('add-overlay').classList.add('open')"
+          class="btn-primary" style="padding:0.45rem 1rem;font-size:0.875rem">+ Add</button>
       </div>
 
-      <div class="card" style="margin-top:1.5rem">
-        <h3 style="font-size:0.95rem;font-weight:600;margin-bottom:1rem">Add Account</h3>
+      ${errorBanner}
+      <div class="acct-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem">
+        ${accounts.length === 0 ? `<div style="grid-column:1/-1">${accountCards}</div>` : accountCards}
+      </div>
+    </div>
+
+    <!-- Add account panel -->
+    <div class="panel-overlay" id="add-overlay" onclick="document.getElementById('add-overlay').classList.remove('open')">
+      <div class="panel-sheet" onclick="event.stopPropagation()">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+          <div style="font-weight:600;font-size:1rem">Add Account</div>
+          <button type="button" onclick="document.getElementById('add-overlay').classList.remove('open')" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
+        </div>
         <form method="POST" action="/accounts">
           <div class="form-group">
-            <label for="name">Account Name</label>
-            <input id="name" name="name" type="text" required placeholder="e.g. DBS Multiplier">
-          </div>
-          <div class="form-group">
-            <label for="type">Type</label>
-            <select id="type" name="type">${typeOptions}</select>
-          </div>
-          <div class="form-group">
-            <label for="institution">Institution (optional)</label>
-            <input id="institution" name="institution" type="text" placeholder="e.g. DBS">
+            <label>Account Name</label>
+            <input name="name" type="text" required placeholder="e.g. DBS Multiplier">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
             <div class="form-group">
-              <label for="currency">Currency</label>
-              <select id="currency" name="currency">${currencyOptions}</select>
+              <label>Type</label>
+              <select name="type">${typeOptions}</select>
             </div>
             <div class="form-group">
-              <label for="balance">Balance</label>
-              <input id="balance" name="balance" type="number" step="0.01" min="0" required placeholder="0.00">
+              <label>Currency</label>
+              <select name="currency">${currencyOptions}</select>
             </div>
           </div>
           <div class="form-group">
-            <label for="notes">Notes (optional)</label>
-            <input id="notes" name="notes" type="text" placeholder="">
+            <label>Balance</label>
+            <input name="balance" type="number" step="0.01" min="0" required placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>Institution (optional)</label>
+            <input name="institution" type="text" placeholder="e.g. DBS">
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <input name="notes" type="text" placeholder="e.g. joint account">
           </div>
           <button type="submit" class="btn-primary" style="width:100%">Add Account</button>
         </form>
       </div>
     </div>
+
     <script>
       function openAcctPanel(id){document.getElementById('acct-overlay-'+id).classList.add('open');}
       function closeAcctPanel(id){document.getElementById('acct-overlay-'+id).classList.remove('open');}
