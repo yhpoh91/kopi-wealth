@@ -2,6 +2,7 @@ import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb } from '../lib/ddb';
 import { config } from '../config';
 import type { SessionRecord } from '../types';
+import { clock } from '../lib/clock';
 
 export async function getSession(sessionId: string): Promise<SessionRecord | null> {
   const res = await ddb.send(new GetCommand({
@@ -21,7 +22,7 @@ export async function putSession(session: SessionRecord): Promise<void> {
 }
 
 export async function deleteSession(sessionId: string, deletedBy: string): Promise<void> {
-  const now = new Date().toISOString();
+  const now = clock.nowIso();
   await ddb.send(new UpdateCommand({
     TableName: config.tableName,
     Key: { PK: `SESSION#${sessionId}`, SK: `SESSION#${sessionId}` },

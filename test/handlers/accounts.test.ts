@@ -15,6 +15,9 @@ vi.mock('../../src/lib/fx', () => ({
   getOrFetchRates: vi.fn(),
   convertAmount: vi.fn(),
 }));
+vi.mock('../../src/lib/clock', () => ({
+  clock: { nowMs: vi.fn(() => new Date('2026-06-28T12:00:00.000Z').getTime()), nowIso: vi.fn(() => '2026-06-28T12:00:00.000Z'), today: vi.fn(() => '2026-06-28') },
+}));
 
 import { handler } from '../../src/handlers/accounts';
 import { requireSession } from '../../src/lib/auth-middleware';
@@ -22,6 +25,7 @@ import { getUser } from '../../src/repositories/user';
 import { getSettings } from '../../src/repositories/financialSettings';
 import { getAccount, queryByUser, putAccount, updateAccount, softDelete, putSnapshot } from '../../src/repositories/account';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
+import { clock } from '../../src/lib/clock';
 
 const mockRequireSession = vi.mocked(requireSession);
 const mockGetUser = vi.mocked(getUser);
@@ -34,6 +38,7 @@ const mockSoftDelete = vi.mocked(softDelete);
 const mockPutSnapshot = vi.mocked(putSnapshot);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
+const mockClock = vi.mocked(clock);
 
 const auth = { authenticated: true as const, session: { sessionId: 's1', sub: 'sub1', role: undefined as undefined } };
 const user = { PK: 'USER#sub1', SK: 'USER#sub1', GSI1PK: 'ALL_USERS', GSI1SK: 'USER#sub1', sub: 'sub1', email: 'u@e.com', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
@@ -216,27 +221,45 @@ describe('GET /accounts', () => {
   });
 
   it('shows "yesterday" for accounts updated 1 day ago', async () => {
-    const yesterday = new Date(Date.now() - 86400000).toISOString();
-    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: yesterday }]);
+    mockClock.nowMs.mockReturnValue(new Date('2026-06-28T12:00:00.000Z').getTime());
+    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: '2026-06-27T12:00:00.000Z' }]);
     mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('yesterday');
   });
 
   it('shows "days ago" for accounts updated a few days ago', async () => {
-    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString();
-    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: fiveDaysAgo }]);
+    mockClock.nowMs.mockReturnValue(new Date('2026-06-28T12:00:00.000Z').getTime());
+    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: '2026-06-23T12:00:00.000Z' }]);
     mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('days ago');
   });
 
+  it('shows "today" for accounts updated today', async () => {
+    mockClock.nowMs.mockReturnValue(new Date('2026-06-28T12:00:00.000Z').getTime());
+    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: '2026-06-28T06:00:00.000Z' }]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('today');
+  });
+
   it('shows "months ago" for accounts updated over 30 days ago', async () => {
-    const twoMonthsAgo = new Date(Date.now() - 65 * 86400000).toISOString();
+    mockClock.nowMs.mockReturnValue(new Date('2026-06-28T12:00:00.000Z').getTime());
+    const twoMonthsAgo = new Date(new Date('2026-06-28T12:00:00.000Z').getTime() - 65 * 86400000).toISOString();
     mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: twoMonthsAgo }]);
     mockConvertAmount.mockReturnValue(10000);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('months ago');
+  });
+
+  it('shows singular "month ago" for accounts updated ~30 days ago', async () => {
+    mockClock.nowMs.mockReturnValue(new Date('2026-06-28T12:00:00.000Z').getTime());
+    const oneMonthAgo = new Date(new Date('2026-06-28T12:00:00.000Z').getTime() - 35 * 86400000).toISOString();
+    mockQueryByUser.mockResolvedValue([{ ...account, updatedAt: oneMonthAgo }]);
+    mockConvertAmount.mockReturnValue(10000);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('1 month ago');
   });
 
   it('shows partial note in type breakdown when FX fails', async () => {

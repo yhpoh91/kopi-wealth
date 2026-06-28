@@ -6,6 +6,7 @@ import { getUser, putUser } from '../../repositories/user';
 import { putSession } from '../../repositories/session';
 import { getSecret } from '../../lib/secrets';
 import { config, secretName } from '../../config';
+import { clock } from '../../lib/clock';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const cookies = parseCookies(event.cookies?.join('; ') ?? event.headers?.cookie);
@@ -50,7 +51,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return { statusCode: 400, body: 'Invalid ID token' };
   }
 
-  const now = new Date().toISOString();
+  const now = clock.nowIso();
 
   let user = await getUser(claims.sub);
   if (!user) {
@@ -74,7 +75,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   await putUser(user);
 
   const sessionId = randomUUID();
-  const ttl = Math.floor(Date.now() / 1000) + 86400;
+  const ttl = Math.floor(clock.nowMs() / 1000) + 86400;
   await putSession({
     PK: `SESSION#${sessionId}`,
     SK: `SESSION#${sessionId}`,

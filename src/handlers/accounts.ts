@@ -7,6 +7,7 @@ import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
 import { getAccount, queryByUser, putAccount, updateAccount, softDelete, putSnapshot } from '../repositories/account';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
+import { clock } from '../lib/clock';
 import type { AccountType } from '../types/account';
 
 const ACCOUNT_TYPES: AccountType[] = ['savings', 'checking', 'fixed_deposit', 'cash'];
@@ -42,7 +43,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const params = Object.fromEntries(new URLSearchParams(rawBody).entries());
 
     if (accountId && action === 'delete') {
-      const now = new Date().toISOString();
+      const now = clock.nowIso();
       await softDelete(auth.session.sub, accountId, auth.session.sub, now);
       return redirect('/accounts');
     }
@@ -54,7 +55,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
       const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
       if (!name || !type || isNaN(balance) || balance < 0) return redirect('/accounts?error=invalid_balance');
-      const now = new Date().toISOString();
+      const now = clock.nowIso();
       const account = await getAccount(auth.session.sub, accountId);
       if (!account || account.deletedAt) return redirect('/accounts?error=not_found');
       await updateAccount(auth.session.sub, accountId, { name, type, balance, institution, notes }, now);
@@ -80,7 +81,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     if (!name || !type || !currency || isNaN(balance) || balance < 0) return redirect(`/accounts?error=invalid&name=${encodeURIComponent(params.name ?? '')}&type=${encodeURIComponent(params.type ?? '')}&currency=${encodeURIComponent(params.currency ?? '')}&balance=${encodeURIComponent(params.balance ?? '')}`);
 
     const id = randomUUID();
-    const now = new Date().toISOString();
+    const now = clock.nowIso();
     await putAccount({
       PK: `ACCOUNT#${auth.session.sub}`,
       SK: `ACCOUNT#${id}`,
@@ -160,7 +161,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     </div>`;
 
   const relativeTime = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime();
+    const diff = clock.nowMs() - new Date(iso).getTime();
     const days = Math.floor(diff / 86400000);
     if (days === 0) return 'today';
     if (days === 1) return 'yesterday';

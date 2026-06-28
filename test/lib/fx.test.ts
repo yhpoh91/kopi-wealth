@@ -4,6 +4,9 @@ vi.mock('../../src/repositories/fxRate', () => ({
   getFxRate: vi.fn(),
   putFxRate: vi.fn(),
 }));
+vi.mock('../../src/lib/clock', () => ({
+  clock: { nowMs: () => new Date('2026-06-28T00:00:00.000Z').getTime(), nowIso: () => '2026-06-28T00:00:00.000Z', today: () => '2026-06-28' },
+}));
 
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 import { getFxRate, putFxRate } from '../../src/repositories/fxRate';
@@ -39,7 +42,7 @@ describe('getOrFetchRates', () => {
 
     const result = await getOrFetchRates('SGD');
     expect(result.rates).toEqual(cachedRates);
-    expect(result.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.date).toBe('2026-06-28');
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('frankfurter.app'));
     expect(mockPutFxRate).toHaveBeenCalledOnce();
     expect(mockPutFxRate.mock.calls[0][0]).toMatchObject({

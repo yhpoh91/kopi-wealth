@@ -340,6 +340,64 @@ const params = Object.fromEntries(new URLSearchParams(rawBody).entries());
 
 ---
 
+## Clock Abstraction — never use `new Date()` or `Date.now()` directly
+
+**Problem:** `new Date()` and `Date.now()` are non-deterministic. Any code that calls them directly is untestable without patching globals (`vi.spyOn(Date, 'now')`), which is global mutation that bleeds between tests.
+
+**Rule:** Import and use the `clock` singleton from `src/lib/clock.ts` everywhere business or handler code needs the current time. Never call `new Date()` or `Date.now()` directly in handlers, repositories, or lib modules.
+
+Exceptions: `src/lib/secrets.ts` (in-memory TTL cache — infrastructure, not business logic) and migration scripts.
+
+```ts
+// ✅ correct
+import { clock } from '../lib/clock';
+const now = clock.nowIso();           // ISO 8601 string
+const today = clock.today();          // YYYY-MM-DD
+const ttl = Math.floor(clock.nowMs() / 1000) + 86400; // unix seconds
+
+// ❌ wrong — untestable
+const now = new Date().toISOString();
+const today = new Date().toISOString().slice(0, 10);
+const ttl = Math.floor(Date.now() / 1000) + 86400;
+```
+
+In tests, mock the entire module so all three methods return fixed values:
+
+```ts
+vi.mock('../../src/lib/clock', () => ({
+  clock: {
+    nowMs: vi.fn(() => new Date('2026-06-28T12:00:00.000Z').getTime()),
+    nowIso: vi.fn(() => '2026-06-28T12:00:00.000Z'),
+    today: vi.fn(() => '2026-06-28'),
+  },
+}));
+```
+
+This keeps `new Date(isoString)` (parsing a known string) acceptable — only capturing "now" is non-deterministic.
+
+---
+
+## FX Conversion Line on Cards
+
+For accounts whose currency differs from the user's base currency, show:
+1. The converted amount: `≈ SGD 1,351.35`
+2. The conversion rate: `(1 USD = 1.35 SGD)`
+3. An ℹ️ icon with hover tooltip showing when the rate was fetched: `Rate as of 2026-06-28`
+
+The rates are fetched **once per GET request** at the top of the handler before any card rendering — no race conditions are possible (SSR, single Lambda invocation). `getOrFetchRates` returns `{ rates, date }` so the retrieval date is available without an extra DDB call.
+
+```ts
+const rate = isForeign && !fxFailed ? rates[a.currency] : undefined;
+const rateLabel = rate !== undefined
+  ? `1 ${a.currency} = ${fmt(1 / rate)} ${currency}`
+  : '';
+const tooltipText = ratesDate ? `Rate as of ${ratesDate}` : 'Rate unavailable';
+```
+
+Use CSS `position:relative` wrapper with an absolutely-positioned tooltip `<span>` hidden by default, shown on `mouseenter`/`focus` via JS. The tooltip text is rendered server-side; only the show/hide is client JS.
+
+---
+
 ## Validation Pattern (POST handlers)
 
 Redirect back with error params on validation failure so the user sees what went wrong:
