@@ -1,25 +1,25 @@
 # Learnings
 
-## API Gateway HTTP API — multiple Set-Cookie headers
+## API Gateway HTTP API v2 — use `cookies` array, not `multiValueHeaders`
 
-**Problem:** Setting `Set-Cookie` in both `headers` and `multiValueHeaders` on the same Lambda response causes API Gateway to drop cookies unpredictably. In the auth login handler, `oauth_state` was being silently dropped, causing an "invalid state" error on the callback.
+**Problem:** `multiValueHeaders` is the **REST API (v1)** response format. Serverless Framework `httpApi` deploys an **HTTP API (v2)**, which uses a top-level `cookies` array. Using `multiValueHeaders` means cookies are silently ignored — they never reach the browser, causing state/PKCE validation to fail on callback.
 
-**Rule:** For multiple `Set-Cookie` headers, use `multiValueHeaders['Set-Cookie']` exclusively. Put `Location` and other single-value headers in `headers`. Never duplicate a header across both objects.
+**Rule:** For HTTP API v2 (i.e. `httpApi` in serverless.yml), set cookies via the `cookies` array. Never use `multiValueHeaders` for cookies with HTTP API v2.
 
 ```ts
-// correct
+// correct — HTTP API v2 format
 return {
   statusCode: 302,
   headers: { Location: authorizeUrl },
-  multiValueHeaders: {
-    'Set-Cookie': [cookie1, cookie2, cookie3],
-  },
+  cookies: [cookie1, cookie2, cookie3],
+  body: '',
 };
 
-// wrong — Set-Cookie in both drops cookies
+// wrong — multiValueHeaders is v1 (REST API) format; cookies silently dropped on v2
 return {
-  headers: { Location: authorizeUrl, 'Set-Cookie': cookie1 },
+  headers: { Location: authorizeUrl },
   multiValueHeaders: { 'Set-Cookie': [cookie1, cookie2, cookie3] },
+  body: '',
 };
 ```
 

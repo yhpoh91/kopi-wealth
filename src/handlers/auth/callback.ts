@@ -88,15 +88,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   return {
     statusCode: 302,
-    multiValueHeaders: {
-      'Set-Cookie': [
-        setCookieHeader('sid', sessionId, 86400, isSecure),
-        clearCookieHeader('pkce_verifier'),
-        clearCookieHeader('oauth_state'),
-        clearCookieHeader('return_to'),
-      ],
-    },
     headers: { Location: returnTo },
+    cookies: [
+      setCookieHeader('sid', sessionId, 86400, isSecure),
+      clearCookieHeader('pkce_verifier'),
+      clearCookieHeader('oauth_state'),
+      clearCookieHeader('return_to'),
+    ],
     body: '',
   };
 };

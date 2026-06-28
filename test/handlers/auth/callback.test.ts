@@ -140,7 +140,7 @@ describe('GET /auth/callback', () => {
 
   it('sets sid cookie and clears pkce/state cookies', async () => {
     const res = await handler(makeEvent(), {} as never, () => {});
-    const cookies = (res as { multiValueHeaders: Record<string, string[]> }).multiValueHeaders['Set-Cookie'];
+    const cookies = (res as { cookies: string[] }).cookies;
     expect(cookies.some((c: string) => c.startsWith('sid='))).toBe(true);
     expect(cookies.some((c: string) => c.includes('pkce_verifier=') && c.includes('Max-Age=0'))).toBe(true);
     expect(cookies.some((c: string) => c.includes('oauth_state=') && c.includes('Max-Age=0'))).toBe(true);

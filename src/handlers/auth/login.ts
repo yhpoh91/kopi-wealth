@@ -23,13 +23,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   return {
     statusCode: 302,
     headers: { Location: authorizeUrl },
-    multiValueHeaders: {
-      'Set-Cookie': [
-        setCookieHeader('pkce_verifier', verifier, 600, isSecure),
-        setCookieHeader('oauth_state', state, 600, isSecure),
-        setCookieHeader('return_to', returnTo, 600, isSecure),
-      ],
-    },
+    cookies: [
+      setCookieHeader('pkce_verifier', verifier, 600, isSecure),
+      setCookieHeader('oauth_state', state, 600, isSecure),
+      setCookieHeader('return_to', returnTo, 600, isSecure),
+    ],
     body: '',
   };
 };

@@ -31,7 +31,7 @@ describe('GET/POST /auth/logout', () => {
     );
 
     expect(mockDeleteSession).toHaveBeenCalledWith('sess1', 'sub1');
-    const cookies = (res as { multiValueHeaders: Record<string, string[]> }).multiValueHeaders['Set-Cookie'];
+    const cookies = (res as { cookies: string[] }).cookies;
     expect(cookies.some((c: string) => c.includes('sid=') && c.includes('Max-Age=0'))).toBe(true);
     expect((res as { statusCode: number }).statusCode).toBe(302);
     expect((res as { headers: Record<string, string> }).headers.Location).toBe('/auth/login');

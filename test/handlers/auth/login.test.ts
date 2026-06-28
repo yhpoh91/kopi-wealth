@@ -31,7 +31,7 @@ describe('GET /auth/login', () => {
 
   it('sets pkce_verifier, oauth_state, return_to cookies', async () => {
     const res = await handler({ queryStringParameters: {} } as never, {} as never, () => {});
-    const cookies = (res as { multiValueHeaders: Record<string, string[]> }).multiValueHeaders['Set-Cookie'];
+    const cookies = (res as { cookies: string[] }).cookies;
     expect(cookies.some((c: string) => c.startsWith('pkce_verifier='))).toBe(true);
     expect(cookies.some((c: string) => c.startsWith('oauth_state='))).toBe(true);
     expect(cookies.some((c: string) => c.startsWith('return_to='))).toBe(true);
@@ -43,14 +43,14 @@ describe('GET /auth/login', () => {
       {} as never,
       () => {},
     );
-    const cookies = (res as { multiValueHeaders: Record<string, string[]> }).multiValueHeaders['Set-Cookie'];
+    const cookies = (res as { cookies: string[] }).cookies;
     const returnToCookie = cookies.find((c: string) => c.startsWith('return_to='));
     expect(returnToCookie).toContain('%2Fdashboard');
   });
 
   it('defaults return_to to /', async () => {
     const res = await handler({ queryStringParameters: undefined } as never, {} as never, () => {});
-    const cookies = (res as { multiValueHeaders: Record<string, string[]> }).multiValueHeaders['Set-Cookie'];
+    const cookies = (res as { cookies: string[] }).cookies;
     const returnToCookie = cookies.find((c: string) => c.startsWith('return_to='));
     expect(returnToCookie).toContain('%2F');
   });
