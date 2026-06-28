@@ -1,7 +1,7 @@
 import layoutHtml from '../templates/layout.html';
 import { escapeHtml } from './html';
 
-export type NavPage = 'dashboard' | 'accounts' | 'settings' | 'admin';
+export type NavPage = 'dashboard' | 'accounts' | 'cpf' | 'settings' | 'admin';
 
 export interface LayoutOptions {
   title: string;
@@ -34,7 +34,8 @@ export function renderPage(opts: LayoutOptions): string {
     .replace('{{HIDE_NAV}}', opts.hideNav ? 'hidden' : '')
     .replace('{{MAIN_CLASS}}', opts.hideNav ? 'no-nav' : '')
     .replace('{{NAV_DASHBOARD}}', nav('dashboard'))
-    .replace('{{NAV_ACCOUNTS}}', nav('accounts'));
+    .replace('{{NAV_ACCOUNTS}}', nav('accounts'))
+    .replace('{{NAV_CPF}}', nav('cpf'));
 }
 
 function initials(name: string): string {
