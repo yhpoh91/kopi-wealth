@@ -46,7 +46,7 @@ Base HTML layout, navigation, dark mode, PWA. Dashboard skeleton. Settings page 
 
 ---
 
-## M6 — Accounts (Cash & Savings) ⬜
+## M6 — Accounts (Cash & Savings) ✅
 
 Add/update balance/delete savings and checking accounts. Account snapshots. Dashboard shows total savings.
 

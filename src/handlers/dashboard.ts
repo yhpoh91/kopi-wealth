@@ -3,6 +3,8 @@ import { requireSession } from '../lib/auth-middleware';
 import { renderPage } from '../lib/layout';
 import { getUser } from '../repositories/user';
 import { getSettings, putSettings } from '../repositories/financialSettings';
+import { queryByUser } from '../repositories/account';
+import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
@@ -30,6 +32,45 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? 'there';
   const currency = settings?.currency ?? 'SGD';
 
+  const accounts = await queryByUser(auth.session.sub);
+  let savingsDisplay = '—';
+  let savingsNote = '';
+
+  if (accounts.length > 0) {
+    const foreignCurrencies = [...new Set(accounts.map((a) => a.currency).filter((c) => c !== currency))];
+    let rates: Record<string, number> = {};
+    let fxFailed = false;
+
+    if (foreignCurrencies.length > 0) {
+      try {
+        rates = await getOrFetchRates(currency);
+      } catch {
+        fxFailed = true;
+      }
+    }
+
+    let total = 0;
+    let hasUnconverted = false;
+
+    for (const account of accounts) {
+      if (account.currency === currency) {
+        total += account.balance;
+      } else {
+        const converted = convertAmount(account.balance, account.currency, currency, rates);
+        if (converted !== null && !fxFailed) {
+          total += converted;
+        } else {
+          hasUnconverted = true;
+        }
+      }
+    }
+
+    savingsDisplay = total.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (hasUnconverted || fxFailed) {
+      savingsNote = ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>';
+    }
+  }
+
   const body = `
     <div style="max-width:640px;margin:0 auto">
       <h2 style="font-size:1.3rem;margin-bottom:1.5rem">
@@ -39,13 +80,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       <div class="card" style="margin-bottom:1rem">
         <div style="font-size:0.8rem;color:var(--color-text-muted);margin-bottom:0.25rem">Net Worth</div>
         <div style="font-size:2rem;font-weight:700;color:var(--color-accent)">${escapeHtml(currency)} —</div>
-        <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.25rem">Add accounts, investments and liabilities to get started</div>
+        <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.25rem">Add investments and liabilities to see net worth</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem">
         <div class="card">
           <div style="font-size:0.75rem;color:var(--color-text-muted)">Savings</div>
-          <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem">—</div>
+          <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem">${accounts.length > 0 ? escapeHtml(currency) + ' ' + savingsDisplay + savingsNote : '—'}</div>
         </div>
         <div class="card">
           <div style="font-size:0.75rem;color:var(--color-text-muted)">Investments</div>
@@ -53,12 +94,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         </div>
       </div>
 
+      ${accounts.length === 0 ? `
       <div class="card">
         <div style="font-size:0.85rem;color:var(--color-text-muted);text-align:center;padding:1rem 0">
           🚀 Your wealth dashboard is ready.<br>
           <a href="/accounts" style="color:var(--color-accent)">Add your first account</a> to get started.
         </div>
-      </div>
+      </div>` : ''}
     </div>`;
 
   return {
