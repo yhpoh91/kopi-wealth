@@ -4,6 +4,7 @@ import { renderPage } from '../lib/layout';
 import { getUser } from '../repositories/user';
 import { getSettings, putSettings } from '../repositories/financialSettings';
 import { queryByUser } from '../repositories/account';
+import { queryByUser as queryInvestments } from '../repositories/investment';
 import { getCpf } from '../repositories/cpf';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
@@ -34,16 +35,20 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? 'there';
   const currency = settings?.currency ?? 'SGD';
 
-  const [accounts, cpf] = await Promise.all([
+  const [accounts, investments, cpf] = await Promise.all([
     queryByUser(auth.session.sub),
+    queryInvestments(auth.session.sub),
     getCpf(auth.session.sub),
   ]);
   let savingsDisplay = '—';
   let savingsNote = '';
 
-  // Gather all foreign currencies needed (accounts + CPF if base != SGD)
+  // Gather all foreign currencies needed (accounts + investments + CPF if base != SGD)
   const needsCpfFx = cpf !== null && currency !== 'SGD';
-  const foreignCurrencies = [...new Set(accounts.map((a) => a.currency).filter((c) => c !== currency))];
+  const foreignCurrencies = [...new Set([
+    ...accounts.map((a) => a.currency),
+    ...investments.map((i) => i.currency),
+  ].filter((c) => c !== currency))];
   if (needsCpfFx && !foreignCurrencies.includes('SGD')) foreignCurrencies.push('SGD');
 
   let rates: Record<string, number> = {};
@@ -79,8 +84,32 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
 
-  // CPF total in display currency
+  // Investments total in display currency
   const fmt = (n: number) => n.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let investDisplay = '—';
+  let investNote = '';
+  if (investments.length > 0) {
+    let total = 0;
+    let hasUnconverted = false;
+    for (const inv of investments) {
+      if (inv.currency === currency) {
+        total += inv.value;
+      } else {
+        const converted = convertAmount(inv.value, inv.currency, currency, rates);
+        if (converted !== null && !fxFailed) {
+          total += converted;
+        } else {
+          hasUnconverted = true;
+        }
+      }
+    }
+    investDisplay = fmt(total);
+    if (hasUnconverted || fxFailed) {
+      investNote = ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>';
+    }
+  }
+
+  // CPF total in display currency
   let cpfDisplay = '—';
   let cpfNote = '';
   if (cpf) {
@@ -114,6 +143,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         <div class="card">
           <div style="font-size:0.75rem;color:var(--color-text-muted)">Savings</div>
           <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem">${accounts.length > 0 ? escapeHtml(currency) + ' ' + savingsDisplay + savingsNote : '—'}</div>
+        </div>
+        <div class="card">
+          <div style="font-size:0.75rem;color:var(--color-text-muted)">Investments</div>
+          <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem">${investments.length > 0 ? escapeHtml(currency) + ' ' + investDisplay + investNote : '—'}</div>
         </div>
         <div class="card">
           <div style="font-size:0.75rem;color:var(--color-text-muted)">CPF</div>
