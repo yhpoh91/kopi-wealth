@@ -63,6 +63,38 @@ jobs:
 
 **Rule:** Only add a nav item (bottom nav, drawer, sidebar) when the destination page actually exists. Placeholder nav items that 404 erode trust and clutter the UI. Remove them from the template; re-add each item in the milestone that builds the corresponding page. This also keeps `NavPage` type and template placeholders lean — only pages with routes are listed.
 
+## FX rate fetching — on-demand with DynamoDB 24h cache
+
+**Approach:** Fetch exchange rates on-demand at dashboard load time, cached in DynamoDB for 24 hours. No scheduler, no cron.
+
+**Provider: `frankfurter.app`** (primary)
+- No API key, no account, no rate limit stated, ECB rates updated once per day
+- One call per base currency returns all target rates: `GET https://api.frankfurter.app/latest?from=SGD`
+- Response: `{ "base": "SGD", "date": "2026-06-28", "rates": { "MYR": 3.45, "USD": 0.74, ... } }`
+- One call covers all foreign-currency accounts regardless of how many target currencies the user has
+
+**Alternative provider: Wise API**
+- Requires a Wise account and API key (stored in Secrets Manager as `wealth/{stage}/wise-api-key`)
+- Endpoint: `GET https://api.wise.com/v1/rates?source=SGD` with `Authorization: Bearer {key}`
+- Returns real mid-market rates, more accurate than ECB for practical use
+- Free tier available; rate limits depend on account type
+- Drop-in replacement — same caching strategy applies; swap the HTTP call and parse the response shape
+
+**DynamoDB cache record**
+- `PK: FXRATE#{baseCurrency}`, `SK: FXRATE#{date}` (e.g. `FXRATE#SGD#2026-06-28`)
+- `rates`: map of target currency → rate (e.g. `{ MYR: 3.45, USD: 0.74 }`)
+- TTL: 48 hours (one extra day buffer; ECB rates only change once per day so 24h cache is lossless)
+- Not excluded from coverage — repository and fetch logic are unit-tested with mocked HTTP
+
+**Dashboard load flow**
+1. Fetch all user accounts → identify unique account currencies ≠ settings currency
+2. If none differ → no FX needed, sum directly
+3. Read `FXRATE#{settingsCurrency}#{today}` from DDB
+4. Cache hit → convert using cached rates, sum
+5. Cache miss → call `frankfurter.app?from={settingsCurrency}` → write full rates map to DDB → convert and sum
+
+**Result:** at most 1 DDB read + 1 HTTP call per dashboard load per day, regardless of user count or number of foreign-currency accounts.
+
 ## kopi-sso OIDC endpoints are under `/oauth2/`
 
 Authorization and token endpoints are not at the issuer root — always read from the OIDC discovery document (`/.well-known/openid-configuration`) rather than assuming path conventions.
