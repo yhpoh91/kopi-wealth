@@ -178,7 +178,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const converted = isForeign ? convertAmount(a.balance, a.currency, currency, rates) : null;
     const rate = isForeign && !fxFailed ? rates[a.currency] : undefined;
     const rateLabel = rate !== undefined
-      ? `1 ${escapeHtml(a.currency)} = ${escapeHtml(fmt(1 / rate))} ${escapeHtml(currency)}`
+      ? `1 ${escapeHtml(a.currency)} = ${escapeHtml((1 / rate).toLocaleString('en-SG', { minimumFractionDigits: 4, maximumFractionDigits: 4 }))} ${escapeHtml(currency)}`
       : '';
     const tooltipText = ratesDate ? `Rate as of ${escapeHtml(ratesDate)}` : 'Rate unavailable';
     const rateInfo = rateLabel
