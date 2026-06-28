@@ -110,6 +110,33 @@ functions:
           method: GET
           path: /
 
+  settings:
+    handler: src/handlers/settings.handler
+    name: wealth-${self:provider.stage}-settings
+    events:
+      - httpApi:
+          method: GET
+          path: /settings
+      - httpApi:
+          method: POST
+          path: /settings
+
+  manifest:
+    handler: src/handlers/static/manifest.handler
+    name: wealth-${self:provider.stage}-manifest
+    events:
+      - httpApi:
+          method: GET
+          path: /manifest.json
+
+  serviceWorker:
+    handler: src/handlers/static/service-worker.handler
+    name: wealth-${self:provider.stage}-service-worker
+    events:
+      - httpApi:
+          method: GET
+          path: /service-worker.js
+
 resources:
   Resources:
     WealthDataTable:
