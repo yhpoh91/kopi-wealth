@@ -7,7 +7,7 @@ vi.mock('../../src/repositories/account', () => ({
   getAccount: vi.fn(),
   queryByUser: vi.fn(),
   putAccount: vi.fn(),
-  updateBalance: vi.fn(),
+  updateAccount: vi.fn(),
   softDelete: vi.fn(),
   putSnapshot: vi.fn(),
 }));
@@ -16,7 +16,7 @@ import { handler } from '../../src/handlers/accounts';
 import { requireSession } from '../../src/lib/auth-middleware';
 import { getUser } from '../../src/repositories/user';
 import { getSettings } from '../../src/repositories/financialSettings';
-import { getAccount, queryByUser, putAccount, updateBalance, softDelete, putSnapshot } from '../../src/repositories/account';
+import { getAccount, queryByUser, putAccount, updateAccount, softDelete, putSnapshot } from '../../src/repositories/account';
 
 const mockRequireSession = vi.mocked(requireSession);
 const mockGetUser = vi.mocked(getUser);
@@ -24,7 +24,7 @@ const mockGetSettings = vi.mocked(getSettings);
 const mockGetAccount = vi.mocked(getAccount);
 const mockQueryByUser = vi.mocked(queryByUser);
 const mockPutAccount = vi.mocked(putAccount);
-const mockUpdateBalance = vi.mocked(updateBalance);
+const mockUpdateAccount = vi.mocked(updateAccount);
 const mockSoftDelete = vi.mocked(softDelete);
 const mockPutSnapshot = vi.mocked(putSnapshot);
 
@@ -54,7 +54,7 @@ beforeEach(() => {
   mockGetSettings.mockResolvedValue(settings);
   mockQueryByUser.mockResolvedValue([]);
   mockPutAccount.mockResolvedValue(undefined);
-  mockUpdateBalance.mockResolvedValue(undefined);
+  mockUpdateAccount.mockResolvedValue(undefined);
   mockSoftDelete.mockResolvedValue(undefined);
   mockPutSnapshot.mockResolvedValue(undefined);
 });
@@ -94,6 +94,17 @@ describe('GET /accounts', () => {
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('DBS');
   });
+
+  it('renders card without institution', async () => {
+    mockQueryByUser.mockResolvedValue([{ ...account, institution: undefined }]);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('DBS Savings');
+  });
+
+  it('shows error banner when error query param present', async () => {
+    const res = await handler(makeEvent('GET', '/accounts', undefined, { query: 'error=invalid&name=X&type=savings&currency=SGD&balance=abc' }), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Validation failed');
+  });
 });
 
 describe('POST /accounts (create)', () => {
@@ -115,25 +126,25 @@ describe('POST /accounts (create)', () => {
 
   it('redirects on negative balance', async () => {
     const body = new URLSearchParams({ name: 'X', type: 'savings', currency: 'SGD', balance: '-1' }).toString();
-    const res = await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
+    await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
     expect(mockPutAccount).not.toHaveBeenCalled();
   });
 
   it('redirects on invalid type', async () => {
     const body = new URLSearchParams({ name: 'X', type: 'invalid', currency: 'SGD', balance: '100' }).toString();
-    const res = await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
+    await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
     expect(mockPutAccount).not.toHaveBeenCalled();
   });
 
   it('redirects on invalid currency', async () => {
     const body = new URLSearchParams({ name: 'X', type: 'savings', currency: 'XYZ', balance: '100' }).toString();
-    const res = await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
+    await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
     expect(mockPutAccount).not.toHaveBeenCalled();
   });
 
   it('redirects on missing name', async () => {
     const body = new URLSearchParams({ name: '', type: 'savings', currency: 'SGD', balance: '100' }).toString();
-    const res = await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
+    await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
     expect(mockPutAccount).not.toHaveBeenCalled();
   });
 
@@ -142,37 +153,58 @@ describe('POST /accounts (create)', () => {
     await handler(makeEvent('POST', '/accounts', body), {} as never, () => {});
     expect(mockPutAccount.mock.calls[0][0]).toMatchObject({ institution: 'DBS', notes: 'primary' });
   });
+
+  it('creates account from base64-encoded body', async () => {
+    const body = new URLSearchParams({ name: 'DBS Savings', type: 'savings', currency: 'SGD', balance: '10000' }).toString();
+    const res = await handler(makeEvent('POST', '/accounts', body, { base64: true }), {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
+    expect(mockPutAccount).toHaveBeenCalledOnce();
+  });
 });
 
-describe('POST /accounts/:id (update balance)', () => {
-  it('updates balance and redirects', async () => {
+describe('POST /accounts/:id (update account)', () => {
+  it('updates account and redirects', async () => {
     mockGetAccount.mockResolvedValue(account);
-    const body = new URLSearchParams({ balance: '20000' }).toString();
+    const body = new URLSearchParams({ name: 'DBS Updated', balance: '20000' }).toString();
     const res = await handler(makeEvent('POST', '/accounts/id1', body), {} as never, () => {});
     expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
-    expect(mockUpdateBalance).toHaveBeenCalledWith('sub1', 'id1', 20000, expect.any(String));
+    expect(mockUpdateAccount).toHaveBeenCalledWith('sub1', 'id1', expect.objectContaining({ name: 'DBS Updated', balance: 20000 }), expect.any(String));
     expect(mockPutSnapshot).toHaveBeenCalledOnce();
   });
 
   it('redirects on invalid balance', async () => {
     mockGetAccount.mockResolvedValue(account);
-    const body = new URLSearchParams({ balance: 'bad' }).toString();
+    const body = new URLSearchParams({ name: 'DBS', balance: 'bad' }).toString();
     await handler(makeEvent('POST', '/accounts/id1', body), {} as never, () => {});
-    expect(mockUpdateBalance).not.toHaveBeenCalled();
+    expect(mockUpdateAccount).not.toHaveBeenCalled();
+  });
+
+  it('redirects on missing name', async () => {
+    mockGetAccount.mockResolvedValue(account);
+    const body = new URLSearchParams({ name: '', balance: '100' }).toString();
+    await handler(makeEvent('POST', '/accounts/id1', body), {} as never, () => {});
+    expect(mockUpdateAccount).not.toHaveBeenCalled();
   });
 
   it('redirects when account not found', async () => {
     mockGetAccount.mockResolvedValue(null);
-    const body = new URLSearchParams({ balance: '100' }).toString();
+    const body = new URLSearchParams({ name: 'X', balance: '100' }).toString();
     await handler(makeEvent('POST', '/accounts/missing', body), {} as never, () => {});
-    expect(mockUpdateBalance).not.toHaveBeenCalled();
+    expect(mockUpdateAccount).not.toHaveBeenCalled();
   });
 
   it('redirects when account is deleted', async () => {
     mockGetAccount.mockResolvedValue({ ...account, deletedAt: '2024-01-02T00:00:00.000Z' });
-    const body = new URLSearchParams({ balance: '100' }).toString();
+    const body = new URLSearchParams({ name: 'X', balance: '100' }).toString();
     await handler(makeEvent('POST', '/accounts/id1', body), {} as never, () => {});
-    expect(mockUpdateBalance).not.toHaveBeenCalled();
+    expect(mockUpdateAccount).not.toHaveBeenCalled();
+  });
+
+  it('passes institution and notes through', async () => {
+    mockGetAccount.mockResolvedValue(account);
+    const body = new URLSearchParams({ name: 'DBS', balance: '100', institution: 'DBS Bank', notes: 'joint' }).toString();
+    await handler(makeEvent('POST', '/accounts/id1', body), {} as never, () => {});
+    expect(mockUpdateAccount).toHaveBeenCalledWith('sub1', 'id1', expect.objectContaining({ institution: 'DBS Bank', notes: 'joint' }), expect.any(String));
   });
 });
 
@@ -189,27 +221,5 @@ describe('POST /accounts with empty body', () => {
     const res = await handler(makeEvent('POST', '/accounts', undefined), {} as never, () => {});
     expect(res).toMatchObject({ statusCode: 302 });
     expect(mockPutAccount).not.toHaveBeenCalled();
-  });
-});
-
-describe('GET /accounts account card variants', () => {
-  it('renders card without institution', async () => {
-    mockQueryByUser.mockResolvedValue([{ ...account, institution: undefined }]);
-    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
-    expect((res as { body: string }).body).toContain('DBS Savings');
-  });
-
-  it('shows error banner when error query param present', async () => {
-    const res = await handler(makeEvent('GET', '/accounts', undefined, { query: 'error=invalid&name=X&type=savings&currency=SGD&balance=abc' }), {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Validation failed');
-  });
-});
-
-describe('POST /accounts base64 body', () => {
-  it('creates account from base64-encoded body', async () => {
-    const body = new URLSearchParams({ name: 'DBS Savings', type: 'savings', currency: 'SGD', balance: '10000' }).toString();
-    const res = await handler(makeEvent('POST', '/accounts', body, { base64: true }), {} as never, () => {});
-    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
-    expect(mockPutAccount).toHaveBeenCalledOnce();
   });
 });

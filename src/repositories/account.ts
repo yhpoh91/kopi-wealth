@@ -28,12 +28,24 @@ export async function putAccount(account: Account): Promise<void> {
   }));
 }
 
-export async function updateBalance(sub: string, id: string, balance: number, updatedAt: string): Promise<void> {
+export async function updateAccount(
+  sub: string,
+  id: string,
+  fields: { name: string; balance: number; institution?: string; notes?: string },
+  updatedAt: string,
+): Promise<void> {
   await ddb.send(new UpdateCommand({
     TableName: config.tableName,
     Key: { PK: `ACCOUNT#${sub}`, SK: `ACCOUNT#${id}` },
-    UpdateExpression: 'SET balance = :balance, updatedAt = :updatedAt',
-    ExpressionAttributeValues: { ':balance': balance, ':updatedAt': updatedAt },
+    UpdateExpression: 'SET #name = :name, balance = :balance, institution = :institution, notes = :notes, updatedAt = :updatedAt',
+    ExpressionAttributeNames: { '#name': 'name' },
+    ExpressionAttributeValues: {
+      ':name': fields.name,
+      ':balance': fields.balance,
+      ':institution': fields.institution ?? null,
+      ':notes': fields.notes ?? null,
+      ':updatedAt': updatedAt,
+    },
   }));
 }
 

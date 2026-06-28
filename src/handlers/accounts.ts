@@ -5,7 +5,7 @@ import { renderPage } from '../lib/layout';
 import { escapeHtml } from '../lib/html';
 import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
-import { getAccount, queryByUser, putAccount, updateBalance, softDelete, putSnapshot } from '../repositories/account';
+import { getAccount, queryByUser, putAccount, updateAccount, softDelete, putSnapshot } from '../repositories/account';
 import type { AccountType } from '../types/account';
 
 const ACCOUNT_TYPES: AccountType[] = ['savings', 'checking', 'fixed_deposit', 'cash'];
@@ -23,9 +23,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const method = event.requestContext.http.method;
   const pathParts = event.rawPath.split('/').filter(Boolean);
-  // /accounts → pathParts = ['accounts']
-  // /accounts/:id → pathParts = ['accounts', id]
-  // /accounts/:id/delete → pathParts = ['accounts', id, 'delete']
+  // /accounts → ['accounts']
+  // /accounts/:id → ['accounts', id]
+  // /accounts/:id/delete → ['accounts', id, 'delete']
   const accountId = pathParts[1];
   const action = pathParts[2];
 
@@ -47,12 +47,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     if (accountId) {
+      const name = (params.name ?? '').trim().slice(0, 100);
       const balance = parseFloat(params.balance ?? '');
-      if (isNaN(balance) || balance < 0) return redirect('/accounts?error=invalid_balance');
+      const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
+      const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
+      if (!name || isNaN(balance) || balance < 0) return redirect('/accounts?error=invalid_balance');
       const now = new Date().toISOString();
       const account = await getAccount(auth.session.sub, accountId);
       if (!account || account.deletedAt) return redirect('/accounts?error=not_found');
-      await updateBalance(auth.session.sub, accountId, balance, now);
+      await updateAccount(auth.session.sub, accountId, { name, balance, institution, notes }, now);
       await putSnapshot({
         PK: `ACCT_SNAP#${accountId}`,
         SK: `SNAP#${now}#${randomUUID()}`,
@@ -119,7 +122,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         No accounts yet. Add your first account below.
        </div>`
     : accounts.map((a) => `
-      <div class="card" style="position:relative;padding-bottom:0.75rem">
+      <div class="card" style="cursor:default">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem">
           <div style="min-width:0;flex:1">
             <div style="font-weight:600;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.name)}</div>
@@ -127,21 +130,40 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
               ${escapeHtml(ACCOUNT_TYPE_LABELS[a.type])}${a.institution ? ' · ' + escapeHtml(a.institution) : ''}
             </div>
           </div>
-          <button type="button"
-            onclick="var el=document.getElementById('edit-${escapeHtml(a.id)}');el.style.display=el.style.display==='none'?'block':'none'"
-            title="Edit balance"
-            style="flex-shrink:0;padding:0.2rem 0.35rem;background:none;border:none;border-radius:0.25rem;color:var(--color-text-muted);cursor:pointer;font-size:0.85rem;opacity:0.6;line-height:1" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">✏️</button>
+          <button type="button" onclick="openAcctPanel('${escapeHtml(a.id)}')" title="Edit account"
+            style="flex-shrink:0;padding:0.2rem 0.3rem;background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:0.9rem;opacity:0.5;line-height:1;transition:opacity 0.12s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">✏️</button>
         </div>
-        <div style="font-size:1.05rem;font-weight:700;color:var(--color-accent);margin-top:0.4rem">${escapeHtml(a.currency)} ${a.balance.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        <div id="edit-${escapeHtml(a.id)}" style="display:none;margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid rgba(255,255,255,.08)">
-          <form method="POST" action="/accounts/${escapeHtml(a.id)}" style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.4rem">
-            <input name="balance" type="number" step="0.01" min="0" value="${a.balance}" style="flex:1;min-width:0;font-size:0.875rem">
-            <button type="submit" class="btn-primary" style="padding:0.35rem 0.75rem;font-size:0.8rem;white-space:nowrap">Save</button>
-            <button type="button" onclick="document.getElementById('edit-${escapeHtml(a.id)}').style.display='none'" style="padding:0.35rem 0.5rem;background:none;border:1px solid rgba(255,255,255,.15);border-radius:0.375rem;color:var(--color-text-muted);cursor:pointer;font-size:0.8rem">✕</button>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--color-accent);margin-top:0.5rem">${escapeHtml(a.currency)} ${a.balance.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      </div>
+
+      <div class="panel-overlay" id="acct-overlay-${escapeHtml(a.id)}" onclick="closeAcctPanel('${escapeHtml(a.id)}')">
+        <div class="panel-sheet" onclick="event.stopPropagation()">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+            <div style="font-weight:600;font-size:1rem">${escapeHtml(a.name)}</div>
+            <button type="button" onclick="closeAcctPanel('${escapeHtml(a.id)}')" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
+          </div>
+          <form method="POST" action="/accounts/${escapeHtml(a.id)}">
+            <div class="form-group">
+              <label>Account Name</label>
+              <input name="name" type="text" required value="${escapeHtml(a.name)}">
+            </div>
+            <div class="form-group">
+              <label>Institution (optional)</label>
+              <input name="institution" type="text" value="${escapeHtml(a.institution ?? '')}">
+            </div>
+            <div class="form-group">
+              <label>Balance</label>
+              <input name="balance" type="number" step="0.01" min="0" required value="${a.balance}">
+            </div>
+            <div class="form-group">
+              <label>Notes (optional)</label>
+              <input name="notes" type="text" value="${escapeHtml(a.notes ?? '')}">
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;margin-bottom:0.75rem">Save changes</button>
           </form>
           <form method="POST" action="/accounts/${escapeHtml(a.id)}/delete"
-            onsubmit="return confirm('Delete ${escapeHtml(a.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}?')" style="margin:0">
-            <button type="submit" style="font-size:0.75rem;background:none;border:none;color:var(--color-error);cursor:pointer;padding:0;opacity:0.8" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">Delete account</button>
+            onsubmit="return confirm('Delete ${escapeHtml(a.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}?')" style="text-align:center">
+            <button type="submit" style="background:none;border:none;color:var(--color-error);cursor:pointer;font-size:0.85rem;padding:0.25rem 0">Delete account</button>
           </form>
         </div>
       </div>`).join('');
@@ -195,7 +217,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           <button type="submit" class="btn-primary" style="width:100%">Add Account</button>
         </form>
       </div>
-    </div>`;
+    </div>
+    <script>
+      function openAcctPanel(id){document.getElementById('acct-overlay-'+id).classList.add('open');}
+      function closeAcctPanel(id){document.getElementById('acct-overlay-'+id).classList.remove('open');}
+    </script>`;
 
   return {
     statusCode: 200,
