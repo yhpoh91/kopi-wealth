@@ -14,9 +14,8 @@ export async function getAccount(sub: string, id: string): Promise<Account | nul
 export async function queryByUser(sub: string): Promise<Account[]> {
   const res = await ddb.send(new QueryCommand({
     TableName: config.tableName,
-    IndexName: 'GSI1',
-    KeyConditionExpression: 'GSI1PK = :pk',
-    ExpressionAttributeValues: { ':pk': `USER#${sub}` },
+    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+    ExpressionAttributeValues: { ':pk': `ACCOUNT#${sub}`, ':prefix': 'ACCOUNT#' },
   }));
   const items = (res.Items ?? []) as Account[];
   return items.filter((a) => !a.deletedAt);
