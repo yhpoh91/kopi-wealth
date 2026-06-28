@@ -159,7 +159,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const refCard = `
     <div class="card" style="margin-bottom:1.25rem">
-      <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em">CPF Reference (2025)</div>
+      <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em">CPF Reference (2026)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 1rem">
         <div>
           <div style="font-size:0.7rem;color:var(--color-text-muted)">Basic Retirement Sum (BRS)</div>
