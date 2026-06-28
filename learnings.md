@@ -23,6 +23,31 @@ return {
 };
 ```
 
+## GitHub Actions — consolidate CI and deploy into one workflow with two jobs
+
+**Problem:** Using two separate workflow files (`ci.yml` and `deploy.yml`) with `workflow_run` to chain them introduces unnecessary complexity: branch detection requires `github.event.workflow_run.head_branch` instead of `github.ref`, checkout needs an explicit `head_sha`, and the overall flow is harder to follow in the Actions UI.
+
+**Rule:** Put CI and deploy as two jobs in the same workflow file. Use `needs: ci` on the deploy job so deploy only runs after CI passes. `github.ref` works naturally and both jobs appear in the same workflow run.
+
+```yaml
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - # typecheck + test
+
+  deploy:
+    needs: ci          # only runs if ci succeeds
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - # AWS deploy steps only
+```
+
 ## kopi-sso OIDC endpoints are under `/oauth2/`
 
 Authorization and token endpoints are not at the issuer root — always read from the OIDC discovery document (`/.well-known/openid-configuration`) rather than assuming path conventions.
