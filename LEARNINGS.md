@@ -255,7 +255,34 @@ JS (one block per page, at the bottom of the body HTML):
 </script>
 ```
 
-### Two-column form row (for pairs like Type + Balance, or Type + Currency)
+### Currency and amount always on the same row
+
+**Rule:** Currency and its corresponding amount/balance field must always appear side-by-side in the same two-column grid row. Never put them on separate rows — the currency label is meaningless without the value next to it.
+
+- **Add forms**: Type alone (full width), then Currency + Balance on one row.
+- **Edit forms**: Currency can't be changed after creation — render it as a read-only disabled input next to Balance so the user sees the context. Type goes on its own full-width row above.
+
+```html
+<!-- Type: full width -->
+<div class="form-group">
+  <label>Type</label>
+  <select name="type">…</select>
+</div>
+<!-- Currency + Amount: always paired -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+  <div class="form-group">
+    <label>Currency</label>
+    <!-- add form: <select name="currency">…</select> -->
+    <!-- edit form: <input type="text" value="SGD" disabled style="opacity:0.6;cursor:not-allowed"> -->
+  </div>
+  <div class="form-group">
+    <label>Balance</label>
+    <input name="balance" type="number" step="0.01" min="0" required>
+  </div>
+</div>
+```
+
+### Two-column form row (for other pairs)
 
 ```html
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">

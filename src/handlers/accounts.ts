@@ -153,10 +153,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
               <label>Account Name</label>
               <input name="name" type="text" required value="${escapeHtml(a.name)}">
             </div>
+            <div class="form-group">
+              <label>Type</label>
+              <select name="type">${typeOpts}</select>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
               <div class="form-group">
-                <label>Type</label>
-                <select name="type">${typeOpts}</select>
+                <label>Currency</label>
+                <input type="text" value="${escapeHtml(a.currency)}" disabled style="opacity:0.6;cursor:not-allowed">
               </div>
               <div class="form-group">
                 <label>Balance</label>
@@ -215,19 +219,19 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
             <label>Account Name</label>
             <input name="name" type="text" required placeholder="e.g. DBS Multiplier">
           </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select name="type">${typeOptions}</select>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
-            <div class="form-group">
-              <label>Type</label>
-              <select name="type">${typeOptions}</select>
-            </div>
             <div class="form-group">
               <label>Currency</label>
               <select name="currency">${currencyOptions}</select>
             </div>
-          </div>
-          <div class="form-group">
-            <label>Balance</label>
-            <input name="balance" type="number" step="0.01" min="0" required placeholder="0.00">
+            <div class="form-group">
+              <label>Balance</label>
+              <input name="balance" type="number" step="0.01" min="0" required placeholder="0.00">
+            </div>
           </div>
           <div class="form-group">
             <label>Institution (optional)</label>
