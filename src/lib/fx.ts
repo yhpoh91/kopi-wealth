@@ -1,4 +1,5 @@
 import { getFxRate, putFxRate } from '../repositories/fxRate';
+import { clock } from './clock';
 
 const FRANKFURTER_URL = 'https://api.frankfurter.app/latest';
 
@@ -9,14 +10,14 @@ export async function fetchRates(baseCurrency: string): Promise<Record<string, n
   return data.rates;
 }
 
-export async function getOrFetchRates(baseCurrency: string): Promise<Record<string, number>> {
-  const today = new Date().toISOString().slice(0, 10);
+export async function getOrFetchRates(baseCurrency: string): Promise<{ rates: Record<string, number>; date: string }> {
+  const today = clock.today();
   const cached = await getFxRate(baseCurrency, today);
-  if (cached) return cached.rates;
+  if (cached) return { rates: cached.rates, date: cached.date };
 
   const rates = await fetchRates(baseCurrency);
-  const now = new Date().toISOString();
-  const ttl = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
+  const now = clock.nowIso();
+  const ttl = Math.floor(clock.nowMs() / 1000) + 48 * 60 * 60;
   await putFxRate({
     PK: `FXRATE#${baseCurrency}`,
     SK: `FXRATE#${today}`,
@@ -26,7 +27,7 @@ export async function getOrFetchRates(baseCurrency: string): Promise<Record<stri
     createdAt: now,
     ttl,
   });
-  return rates;
+  return { rates, date: today };
 }
 
 export function convertAmount(amount: number, from: string, to: string, rates: Record<string, number>): number | null {

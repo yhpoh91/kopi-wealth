@@ -40,7 +40,7 @@ beforeEach(() => {
   mockGetSettings.mockResolvedValue(settings);
   mockPutSettings.mockResolvedValue(undefined);
   mockQueryByUser.mockResolvedValue([]);
-  mockGetOrFetchRates.mockResolvedValue({ MYR: 3.45 });
+  mockGetOrFetchRates.mockResolvedValue({ rates: { MYR: 3.45 }, date: '2026-06-28' });
   mockConvertAmount.mockImplementation((amount, from, to, rates) => {
     if (from === to) return amount;
     const rate = rates[from];
@@ -127,7 +127,7 @@ describe('GET /', () => {
   it('shows partial when rate not available for a currency', async () => {
     const jpyAccount = { ...sgdAccount, id: 'id3', currency: 'JPY', balance: 10000 };
     mockQueryByUser.mockResolvedValue([sgdAccount, jpyAccount]);
-    mockGetOrFetchRates.mockResolvedValue({});
+    mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-28' });
     mockConvertAmount.mockReturnValue(null);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('partial');

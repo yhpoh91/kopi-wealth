@@ -6,6 +6,7 @@ import { getSettings, putSettings } from '../repositories/financialSettings';
 import { queryByUser } from '../repositories/account';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
+import { clock } from '../lib/clock';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSession(event);
@@ -17,7 +18,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   ]);
 
   if (!settings) {
-    const now = new Date().toISOString();
+    const now = clock.nowIso();
     await putSettings({
       PK: `SETTINGS#${auth.session.sub}`,
       SK: 'SETTINGS',
@@ -43,7 +44,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
     if (foreignCurrencies.length > 0) {
       try {
-        rates = await getOrFetchRates(currency);
+        ({ rates } = await getOrFetchRates(currency));
       } catch {
         fxFailed = true;
       }
