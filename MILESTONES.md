@@ -22,17 +22,15 @@ Files: `.gitignore`, `README.md`, `CLAUDE.md`, `MILESTONES.md`, `package.json`, 
 
 ---
 
-## M2 — GHA Deploy + Custom Domain ⬜
+## M2 — GHA Deploy + Custom Domain ✅
 
-Add deploy job to `deploy.yml`. Proves OIDC → AWS → Serverless Framework pipeline. Custom domain creation (idempotent). Migration check gate. Stub handlers deployed (no `httpApi` events yet).
-
-Requires GitHub secrets: `AWS_DEPLOY_ROLE_ARN`, `SSO_CLIENT_ID_{PREVIEW,PROD}`, `SSO_ISSUER_{PREVIEW,PROD}`, `ADMIN_SUB_{PREVIEW,PROD}`, `ACM_CERT_ARN_{PREVIEW,PROD}`.
+Full deploy job in `deploy.yml`: OIDC → AWS credentials → migration check → Secrets Manager bootstrap → custom domain (idempotent) → Serverless Framework deploy. All `httpApi` events wired; `GET /health` returns `{"status":"ok"}`. DNS CNAMEs must be added manually after first deploy (see API Gateway output).
 
 ---
 
-## M3 — API Gateway + Health Endpoint ⬜
+## M3 — API Gateway + Health Endpoint ✅
 
-All `httpApi` events wired. `GET /health` returns `{"status":"ok"}`. Domains live.
+Covered by M2 — `httpApi` events were already in `serverless.yml` and deploy together.
 
 ---
 

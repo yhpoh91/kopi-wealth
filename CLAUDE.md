@@ -36,7 +36,6 @@ npm run migrate:check:prod
 - **Never `ScanCommand`**. All reads are `GetCommand` (PK+SK) or `QueryCommand` (PK or GSI1PK).
 - **Coverage ≥ 95%** (lines/functions/branches). Excludes `src/templates/**`.
 - **No hard deletes** — soft delete only (`deletedAt`, `deletedBy`). DDB TTL for ephemeral records (sessions).
-- **No deploy in CI until M2 is merged.** Deploy job is a stub in `deploy.yml`.
 - **Branch discipline** — `main` is the default and production branch. After the initial commit, never push directly to `main`. All work goes on `claude/<short-description>-<id>` (AI-assisted) or `feature/<name>` (human-led) branches and merges via PR. PRs are merged by the repo owner only — never by Claude.
 - **Scope out milestones** — exact handlers, routes, DDB key patterns, templates, and tests are agreed before starting each milestone.
 
@@ -116,7 +115,7 @@ kopi-wealth/
 ├── MILESTONES.md
 └── .github/workflows/
     ├── ci.yml           # Typecheck + test (all branches, no AWS)
-    ├── deploy.yml       # CI + deploy (deploy job stub until M2 merged)
+    ├── deploy.yml       # CI + deploy to preview (non-main) or prod (main)
     └── migrate.yml      # Manual migration dispatch
 ```
 
