@@ -9,10 +9,10 @@ export async function fetchRates(baseCurrency: string): Promise<Record<string, n
   return data.rates;
 }
 
-export async function getOrFetchRates(baseCurrency: string): Promise<Record<string, number>> {
+export async function getOrFetchRates(baseCurrency: string): Promise<{ rates: Record<string, number>; date: string }> {
   const today = new Date().toISOString().slice(0, 10);
   const cached = await getFxRate(baseCurrency, today);
-  if (cached) return cached.rates;
+  if (cached) return { rates: cached.rates, date: cached.date };
 
   const rates = await fetchRates(baseCurrency);
   const now = new Date().toISOString();
@@ -26,7 +26,7 @@ export async function getOrFetchRates(baseCurrency: string): Promise<Record<stri
     createdAt: now,
     ttl,
   });
-  return rates;
+  return { rates, date: today };
 }
 
 export function convertAmount(amount: number, from: string, to: string, rates: Record<string, number>): number | null {

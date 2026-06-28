@@ -121,10 +121,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   // FX conversion for summary
   let rates: Record<string, number> = {};
+  let ratesDate = '';
   let fxFailed = false;
   const foreignCurrencies = [...new Set(accounts.map((a) => a.currency).filter((c) => c !== currency))];
   if (foreignCurrencies.length > 0) {
-    try { rates = await getOrFetchRates(currency); } catch { fxFailed = true; }
+    try { ({ rates, date: ratesDate } = await getOrFetchRates(currency)); } catch { fxFailed = true; }
   }
 
   // Compute totals per type and grand total
@@ -174,9 +175,17 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     ).join('');
     const isForeign = a.currency !== currency;
     const converted = isForeign ? convertAmount(a.balance, a.currency, currency, rates) : null;
+    const rate = isForeign && !fxFailed ? rates[a.currency] : undefined;
+    const rateLabel = rate !== undefined
+      ? `1 ${escapeHtml(a.currency)} = ${escapeHtml(fmt(1 / rate))} ${escapeHtml(currency)}`
+      : '';
+    const tooltipText = ratesDate ? `Rate as of ${escapeHtml(ratesDate)}` : 'Rate unavailable';
+    const rateInfo = rateLabel
+      ? ` <span style="position:relative;display:inline-block;cursor:help" tabindex="0">ℹ️<span style="display:none;position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:0.65rem;white-space:nowrap;padding:0.2rem 0.4rem;border-radius:0.3rem;pointer-events:none" class="fx-tip">${tooltipText}</span></span>`
+      : '';
     const convertedLine = isForeign
       ? converted !== null
-        ? `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">≈ ${escapeHtml(currency)} ${escapeHtml(fmt(converted))}</div>`
+        ? `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">≈ ${escapeHtml(currency)} ${escapeHtml(fmt(converted))} <span style="opacity:0.7">(${rateLabel})</span>${rateInfo}</div>`
         : `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">≈ ${escapeHtml(currency)} —</div>`
       : '';
 
@@ -323,6 +332,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     <script>
       function openAcctPanel(id){document.getElementById('acct-overlay-'+id).classList.add('open');}
       function closeAcctPanel(id){document.getElementById('acct-overlay-'+id).classList.remove('open');}
+      document.querySelectorAll('.fx-tip').forEach(function(tip){
+        var el=tip.parentElement;
+        el.addEventListener('mouseenter',function(){tip.style.display='block';});
+        el.addEventListener('mouseleave',function(){tip.style.display='none';});
+        el.addEventListener('focus',function(){tip.style.display='block';});
+        el.addEventListener('blur',function(){tip.style.display='none';});
+      });
     </script>`;
 
   return {

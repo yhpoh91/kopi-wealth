@@ -25,8 +25,8 @@ describe('getOrFetchRates', () => {
       baseCurrency: 'SGD', date: '2024-01-01',
       rates: cachedRates, createdAt: '2024-01-01T00:00:00.000Z', ttl: 9999999999,
     });
-    const rates = await getOrFetchRates('SGD');
-    expect(rates).toEqual(cachedRates);
+    const result = await getOrFetchRates('SGD');
+    expect(result).toEqual({ rates: cachedRates, date: '2024-01-01' });
     expect(mockPutFxRate).not.toHaveBeenCalled();
   });
 
@@ -37,8 +37,9 @@ describe('getOrFetchRates', () => {
       json: async () => ({ rates: cachedRates }),
     } as Response);
 
-    const rates = await getOrFetchRates('SGD');
-    expect(rates).toEqual(cachedRates);
+    const result = await getOrFetchRates('SGD');
+    expect(result.rates).toEqual(cachedRates);
+    expect(result.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('frankfurter.app'));
     expect(mockPutFxRate).toHaveBeenCalledOnce();
     expect(mockPutFxRate.mock.calls[0][0]).toMatchObject({

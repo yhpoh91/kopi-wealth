@@ -43,7 +43,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
     if (foreignCurrencies.length > 0) {
       try {
-        rates = await getOrFetchRates(currency);
+        ({ rates } = await getOrFetchRates(currency));
       } catch {
         fxFailed = true;
       }

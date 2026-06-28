@@ -64,7 +64,7 @@ beforeEach(() => {
   mockUpdateAccount.mockResolvedValue(undefined);
   mockSoftDelete.mockResolvedValue(undefined);
   mockPutSnapshot.mockResolvedValue(undefined);
-  mockGetOrFetchRates.mockResolvedValue({});
+  mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-28' });
   mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : null);
 });
 
@@ -123,16 +123,45 @@ describe('GET /accounts', () => {
   it('shows converted home-currency value for foreign accounts', async () => {
     const usdAccount = { ...account, currency: 'USD', balance: 1000 };
     mockQueryByUser.mockResolvedValue([usdAccount]);
-    mockGetOrFetchRates.mockResolvedValue({ USD: 0.74 });
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '2026-06-28' });
     mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : 1351.35);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('≈ SGD');
   });
 
+  it('shows conversion rate and tooltip for foreign accounts', async () => {
+    const usdAccount = { ...account, currency: 'USD', balance: 1000 };
+    mockQueryByUser.mockResolvedValue([usdAccount]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '2026-06-28' });
+    mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : 1351.35);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('1 USD =');
+    expect((res as { body: string }).body).toContain('Rate as of 2026-06-28');
+  });
+
+  it('shows "Rate unavailable" tooltip when ratesDate is empty string', async () => {
+    const usdAccount = { ...account, currency: 'USD', balance: 1000 };
+    mockQueryByUser.mockResolvedValue([usdAccount]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '' });
+    mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : 1351.35);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Rate unavailable');
+  });
+
+  it('shows no rate info when rate is not in rates map', async () => {
+    const usdAccount = { ...account, currency: 'USD', balance: 1000 };
+    mockQueryByUser.mockResolvedValue([usdAccount]);
+    // USD not in rates map → rate undefined → rateLabel empty → no tooltip
+    mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-28' });
+    mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : 1351.35);
+    const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
+    expect((res as { body: string }).body).not.toContain('Rate as of');
+  });
+
   it('shows fallback dash when FX conversion unavailable', async () => {
     const usdAccount = { ...account, currency: 'USD', balance: 1000 };
     mockQueryByUser.mockResolvedValue([usdAccount]);
-    mockGetOrFetchRates.mockResolvedValue({});
+    mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-28' });
     mockConvertAmount.mockReturnValue(null);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('≈ SGD —');
