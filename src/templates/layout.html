@@ -14,6 +14,7 @@
   </script>
   <style>
     :root[data-theme="dark"] {
+      color-scheme: dark;
       --color-bg: #1A3026;
       --color-surface: #2B2118;
       --color-accent: #C7A052;
@@ -24,6 +25,7 @@
       --color-error: #CC5500;
     }
     :root[data-theme="light"] {
+      color-scheme: light;
       --color-bg: #F5F0E8;
       --color-surface: #FFFFFF;
       --color-accent: #C7A052;
@@ -212,42 +214,11 @@
       <span class="nav-icon">🏠</span>
       <span>Dashboard</span>
     </a>
-    <a href="/accounts" class="nav-item {{NAV_ACCOUNTS}}">
-      <span class="nav-icon">🏦</span>
-      <span>Accounts</span>
-    </a>
-    <a href="/goals" class="nav-item {{NAV_GOALS}}">
-      <span class="nav-icon">🎯</span>
-      <span>Goals</span>
-    </a>
-    <a href="/expenses" class="nav-item {{NAV_EXPENSES}}">
-      <span class="nav-icon">💸</span>
-      <span>Expenses</span>
-    </a>
-    <button class="nav-item" onclick="openMore()">
-      <span class="nav-icon">☰</span>
-      <span>More</span>
-    </button>
   </nav>
-
-  <!-- More drawer -->
-  <div class="panel-overlay" id="more-overlay" onclick="closeMore()">
-    <div class="panel-sheet" onclick="event.stopPropagation()">
-      <a href="/investments" class="panel-row">📈 Investments</a>
-      <a href="/cpf" class="panel-row">🏛️ CPF</a>
-      <a href="/receivables" class="panel-row">📥 Receivables</a>
-      <a href="/liabilities" class="panel-row">📤 Liabilities</a>
-      <a href="/reserved-funds" class="panel-row">🛡️ Reserved Funds</a>
-      <a href="/reports" class="panel-row">📊 Reports</a>
-      <a href="/settings" class="panel-row">⚙️ Settings</a>
-    </div>
-  </div>
 
   {{USER_PANEL_MODAL}}
 
   <script>
-    function openMore(){document.getElementById('more-overlay').classList.add('open');}
-    function closeMore(){document.getElementById('more-overlay').classList.remove('open');}
     function openPanel(){document.getElementById('user-overlay').classList.add('open');}
     function closePanel(){document.getElementById('user-overlay').classList.remove('open');}
     function toggleTheme(){

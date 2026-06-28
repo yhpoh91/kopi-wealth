@@ -18,8 +18,8 @@ describe('renderPage', () => {
   });
 
   it('no active class when page does not match', () => {
-    const html = renderPage({ title: 'T', body: '', page: 'accounts' });
-    expect(html).toContain('class="nav-item active"');
+    const html = renderPage({ title: 'T', body: '', page: 'settings' });
+    expect(html).not.toContain('class="nav-item active"');
   });
 
   it('hides nav when hideNav is true', () => {
