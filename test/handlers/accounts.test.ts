@@ -33,13 +33,15 @@ const user = { PK: 'USER#sub1', SK: 'USER#sub1', GSI1PK: 'ALL_USERS', GSI1SK: 'U
 const settings = { PK: 'SETTINGS#sub1', SK: 'SETTINGS', sub: 'sub1', currency: 'SGD', timezone: 'Asia/Singapore', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
 const account = { PK: 'ACCOUNT#sub1', SK: 'ACCOUNT#id1', GSI1PK: 'USER#sub1', GSI1SK: 'ACCOUNT#2024-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'DBS Savings', type: 'savings' as const, balance: 10000, currency: 'SGD', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
 
-function makeEvent(method: string, path: string, body?: string) {
+function makeEvent(method: string, path: string, body?: string, opts: { base64?: boolean; query?: string } = {}) {
   const parts = path.split('/').filter(Boolean);
   return {
     requestContext: { http: { method } },
     rawPath: path,
+    rawQueryString: opts.query ?? '',
     pathParameters: parts[1] ? { id: parts[1] } : undefined,
-    body,
+    body: opts.base64 ? Buffer.from(body ?? '').toString('base64') : body,
+    isBase64Encoded: opts.base64 ?? false,
     cookies: ['sid=s1'],
     headers: {},
   } as never;
@@ -195,5 +197,19 @@ describe('GET /accounts account card variants', () => {
     mockQueryByUser.mockResolvedValue([{ ...account, institution: undefined }]);
     const res = await handler(makeEvent('GET', '/accounts'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('DBS Savings');
+  });
+
+  it('shows error banner when error query param present', async () => {
+    const res = await handler(makeEvent('GET', '/accounts', undefined, { query: 'error=invalid&name=X&type=savings&currency=SGD&balance=abc' }), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Validation failed');
+  });
+});
+
+describe('POST /accounts base64 body', () => {
+  it('creates account from base64-encoded body', async () => {
+    const body = new URLSearchParams({ name: 'DBS Savings', type: 'savings', currency: 'SGD', balance: '10000' }).toString();
+    const res = await handler(makeEvent('POST', '/accounts', body, { base64: true }), {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
+    expect(mockPutAccount).toHaveBeenCalledOnce();
   });
 });

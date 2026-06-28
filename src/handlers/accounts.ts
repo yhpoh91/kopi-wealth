@@ -35,7 +35,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   ]);
 
   if (method === 'POST') {
-    const params = Object.fromEntries(new URLSearchParams(event.body ?? '').entries());
+    const rawBody = event.isBase64Encoded
+      ? Buffer.from(event.body ?? '', 'base64').toString('utf8')
+      : (event.body ?? '');
+    const params = Object.fromEntries(new URLSearchParams(rawBody).entries());
 
     if (accountId && action === 'delete') {
       const now = new Date().toISOString();
@@ -45,10 +48,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
     if (accountId) {
       const balance = parseFloat(params.balance ?? '');
-      if (isNaN(balance) || balance < 0) return redirect('/accounts');
+      if (isNaN(balance) || balance < 0) return redirect('/accounts?error=invalid_balance');
       const now = new Date().toISOString();
       const account = await getAccount(auth.session.sub, accountId);
-      if (!account || account.deletedAt) return redirect('/accounts');
+      if (!account || account.deletedAt) return redirect('/accounts?error=not_found');
       await updateBalance(auth.session.sub, accountId, balance, now);
       await putSnapshot({
         PK: `ACCT_SNAP#${accountId}`,
@@ -69,7 +72,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
     const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
 
-    if (!name || !type || !currency || isNaN(balance) || balance < 0) return redirect('/accounts');
+    if (!name || !type || !currency || isNaN(balance) || balance < 0) return redirect(`/accounts?error=invalid&name=${encodeURIComponent(params.name ?? '')}&type=${encodeURIComponent(params.type ?? '')}&currency=${encodeURIComponent(params.currency ?? '')}&balance=${encodeURIComponent(params.balance ?? '')}`);
 
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -103,6 +106,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   // GET
   const accounts = await queryByUser(auth.session.sub);
   const currency = settings?.currency ?? 'SGD';
+  const qs = new URLSearchParams(event.rawQueryString ?? '');
+  const errorParam = qs.get('error');
+  const errorBanner = errorParam
+    ? `<div style="background:var(--color-error);color:#fff;padding:0.75rem 1rem;border-radius:0.5rem;margin-bottom:1rem;font-size:0.875rem">
+        Validation failed (${escapeHtml(errorParam)}): name="${escapeHtml(qs.get('name') ?? '')}" type="${escapeHtml(qs.get('type') ?? '')}" currency="${escapeHtml(qs.get('currency') ?? '')}" balance="${escapeHtml(qs.get('balance') ?? '')}"
+       </div>`
+    : '';
 
   const accountCards = accounts.length === 0
     ? `<div class="card" style="text-align:center;color:var(--color-text-muted);padding:2rem 1rem">
@@ -145,6 +155,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     <div style="max-width:640px;margin:0 auto">
       <h2 style="font-size:1.3rem;margin-bottom:1.5rem">Accounts</h2>
 
+      ${errorBanner}
       ${accountCards}
 
       <div class="card" style="margin-top:1.5rem">
