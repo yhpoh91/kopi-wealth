@@ -41,7 +41,7 @@ export function buildAuthorizeUrl(params: {
   state: string;
   challenge: string;
 }): string {
-  const url = new URL(`${params.issuer}/authorize`);
+  const url = new URL(`${params.issuer}/oauth2/authorize`);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', params.clientId);
   url.searchParams.set('redirect_uri', params.redirectUri);
@@ -60,7 +60,7 @@ export async function exchangeCode(params: {
   code: string;
   verifier: string;
 }): Promise<{ id_token: string; access_token: string }> {
-  const res = await fetch(`${params.issuer}/token`, {
+  const res = await fetch(`${params.issuer}/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({

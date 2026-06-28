@@ -4,7 +4,7 @@ vi.mock('../../../src/lib/auth', () => ({
   generatePkce: () => ({ verifier: 'test-verifier', challenge: 'test-challenge' }),
   generateState: () => 'test-state',
   buildAuthorizeUrl: (p: Record<string, string>) =>
-    `https://sso.example.com/authorize?client_id=${p.clientId}&state=${p.state}&code_challenge=${p.challenge}`,
+    `https://sso.example.com/oauth2/authorize?client_id=${p.clientId}&state=${p.state}&code_challenge=${p.challenge}`,
 }));
 
 vi.mock('../../../src/config', () => ({
@@ -25,7 +25,7 @@ describe('GET /auth/login', () => {
     const res = await handler({ queryStringParameters: {} } as never, {} as never, () => {});
     expect(res).toMatchObject({ statusCode: 302 });
     const location = (res as { headers: Record<string, string> }).headers.Location;
-    expect(location).toContain('sso.example.com/authorize');
+    expect(location).toContain('sso.example.com/oauth2/authorize');
     expect(location).toContain('test-challenge');
   });
 
