@@ -40,7 +40,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
     return {
       statusCode: 302,
-      headers: { Location: '/settings' },
+      headers: { Location: '/settings' } as Record<string, string>,
       cookies: [],
       body: '',
     };
