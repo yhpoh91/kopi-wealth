@@ -40,7 +40,7 @@ Full OIDC PKCE login/callback/logout. Session management (DDB + HttpOnly cookie)
 
 ---
 
-## M5 — UI Shell + Dashboard + Settings ⬜
+## M5 — UI Shell + Dashboard + Settings ✅
 
 Base HTML layout, navigation, dark mode, PWA. Dashboard skeleton. Settings page (profile, currency, timezone). FinancialSettings record seeded at first login.
 

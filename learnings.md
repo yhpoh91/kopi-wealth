@@ -48,6 +48,21 @@ jobs:
       - # AWS deploy steps only
 ```
 
+## Fix `<select>` contrast in dark mode with `color-scheme`
+
+**Problem:** Native `<select>` and `<option>` elements use system-default colours regardless of CSS custom properties. In dark mode the dropdown list renders with browser defaults (dark text on white background), which clashes with the custom dark theme.
+
+**Fix:** Add `color-scheme: dark` / `color-scheme: light` to the corresponding `:root[data-theme]` blocks. This tells the browser to render all native form controls in dark or light mode to match the page theme.
+
+```css
+:root[data-theme="dark"]  { color-scheme: dark; ... }
+:root[data-theme="light"] { color-scheme: light; ... }
+```
+
+## Hide unbuilt navigation items until the feature is ready
+
+**Rule:** Only add a nav item (bottom nav, drawer, sidebar) when the destination page actually exists. Placeholder nav items that 404 erode trust and clutter the UI. Remove them from the template; re-add each item in the milestone that builds the corresponding page. This also keeps `NavPage` type and template placeholders lean — only pages with routes are listed.
+
 ## kopi-sso OIDC endpoints are under `/oauth2/`
 
 Authorization and token endpoints are not at the issuer root — always read from the OIDC discovery document (`/.well-known/openid-configuration`) rather than assuming path conventions.

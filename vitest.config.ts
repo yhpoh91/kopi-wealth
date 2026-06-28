@@ -1,6 +1,21 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
+import type { Plugin } from 'vite';
+
+function htmlTextPlugin(): Plugin {
+  return {
+    name: 'html-as-text',
+    transform(_, id) {
+      if (id.endsWith('.html')) {
+        const content = readFileSync(id, 'utf8');
+        return `export default ${JSON.stringify(content)}`;
+      }
+    },
+  };
+}
 
 export default defineConfig({
+  plugins: [htmlTextPlugin()],
   test: {
     exclude: ['node_modules/**', '.claude/**'],
     coverage: {
