@@ -120,28 +120,38 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
        </div>`
     : accounts.map((a) => `
       <div class="card" style="margin-bottom:0.75rem">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
-            <div style="font-weight:600">${escapeHtml(a.name)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem">
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.name)}</div>
             <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.1rem">
               ${escapeHtml(ACCOUNT_TYPE_LABELS[a.type])}${a.institution ? ' · ' + escapeHtml(a.institution) : ''}
             </div>
           </div>
-          <div style="text-align:right">
+          <div style="text-align:right;flex-shrink:0">
             <div style="font-size:1.1rem;font-weight:700;color:var(--color-accent)">${escapeHtml(a.currency)} ${a.balance.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
         </div>
-        <details style="margin-top:0.75rem">
-          <summary style="font-size:0.8rem;color:var(--color-text-muted);cursor:pointer">Update balance</summary>
-          <form method="POST" action="/accounts/${escapeHtml(a.id)}" style="margin-top:0.5rem;display:flex;gap:0.5rem">
-            <input name="balance" type="number" step="0.01" min="0" value="${a.balance}" style="flex:1">
-            <button type="submit" class="btn-primary" style="padding:0.5rem 1rem">Save</button>
+        <div id="edit-${escapeHtml(a.id)}" style="display:none;margin-top:0.75rem">
+          <form method="POST" action="/accounts/${escapeHtml(a.id)}" style="display:flex;gap:0.5rem;align-items:center">
+            <input name="balance" type="number" step="0.01" min="0" value="${a.balance}" style="flex:1;min-width:0">
+            <button type="submit" class="btn-primary" style="padding:0.4rem 0.9rem;white-space:nowrap">Save</button>
+            <button type="button" onclick="document.getElementById('edit-${escapeHtml(a.id)}').style.display='none'" style="padding:0.4rem 0.6rem;background:var(--color-surface-2,rgba(255,255,255,.08));border:1px solid var(--color-border,rgba(255,255,255,.12));border-radius:0.375rem;color:var(--color-text-muted);cursor:pointer;font-size:0.8rem">✕</button>
           </form>
-        </details>
-        <form method="POST" action="/accounts/${escapeHtml(a.id)}/delete" style="margin-top:0.5rem"
-          onsubmit="return confirm('Delete ${escapeHtml(a.name.replace(/'/g, "\\'"))}?')">
-          <button type="submit" style="font-size:0.75rem;color:var(--color-error);background:none;border:none;cursor:pointer;padding:0">Delete</button>
-        </form>
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-top:0.75rem">
+          <button type="button"
+            onclick="var el=document.getElementById('edit-${escapeHtml(a.id)}');el.style.display=el.style.display==='none'?'block':'none'"
+            style="flex:1;padding:0.35rem 0.75rem;font-size:0.8rem;background:var(--color-surface-2,rgba(255,255,255,.08));border:1px solid var(--color-border,rgba(255,255,255,.12));border-radius:0.375rem;color:var(--color-text-muted);cursor:pointer">
+            Edit balance
+          </button>
+          <form method="POST" action="/accounts/${escapeHtml(a.id)}/delete"
+            onsubmit="return confirm('Delete ${escapeHtml(a.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}?')" style="margin:0">
+            <button type="submit"
+              style="padding:0.35rem 0.75rem;font-size:0.8rem;background:transparent;border:1px solid var(--color-error);border-radius:0.375rem;color:var(--color-error);cursor:pointer">
+              Delete
+            </button>
+          </form>
+        </div>
       </div>`).join('');
 
   const typeOptions = ACCOUNT_TYPES.map(
