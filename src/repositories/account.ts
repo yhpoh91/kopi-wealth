@@ -31,16 +31,17 @@ export async function putAccount(account: Account): Promise<void> {
 export async function updateAccount(
   sub: string,
   id: string,
-  fields: { name: string; balance: number; institution?: string; notes?: string },
+  fields: { name: string; type: string; balance: number; institution?: string; notes?: string },
   updatedAt: string,
 ): Promise<void> {
   await ddb.send(new UpdateCommand({
     TableName: config.tableName,
     Key: { PK: `ACCOUNT#${sub}`, SK: `ACCOUNT#${id}` },
-    UpdateExpression: 'SET #name = :name, balance = :balance, institution = :institution, notes = :notes, updatedAt = :updatedAt',
-    ExpressionAttributeNames: { '#name': 'name' },
+    UpdateExpression: 'SET #name = :name, #type = :type, balance = :balance, institution = :institution, notes = :notes, updatedAt = :updatedAt',
+    ExpressionAttributeNames: { '#name': 'name', '#type': 'type' },
     ExpressionAttributeValues: {
       ':name': fields.name,
+      ':type': fields.type,
       ':balance': fields.balance,
       ':institution': fields.institution ?? null,
       ':notes': fields.notes ?? null,

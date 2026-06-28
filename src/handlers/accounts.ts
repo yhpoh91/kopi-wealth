@@ -48,14 +48,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
     if (accountId) {
       const name = (params.name ?? '').trim().slice(0, 100);
+      const type = ACCOUNT_TYPES.includes(params.type as AccountType) ? (params.type as AccountType) : null;
       const balance = parseFloat(params.balance ?? '');
       const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
       const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
-      if (!name || isNaN(balance) || balance < 0) return redirect('/accounts?error=invalid_balance');
+      if (!name || !type || isNaN(balance) || balance < 0) return redirect('/accounts?error=invalid_balance');
       const now = new Date().toISOString();
       const account = await getAccount(auth.session.sub, accountId);
       if (!account || account.deletedAt) return redirect('/accounts?error=not_found');
-      await updateAccount(auth.session.sub, accountId, { name, balance, institution, notes }, now);
+      await updateAccount(auth.session.sub, accountId, { name, type, balance, institution, notes }, now);
       await putSnapshot({
         PK: `ACCT_SNAP#${accountId}`,
         SK: `SNAP#${now}#${randomUUID()}`,
@@ -121,7 +122,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     ? `<div class="card" style="text-align:center;color:var(--color-text-muted);padding:2rem 1rem">
         No accounts yet. Add your first account below.
        </div>`
-    : accounts.map((a) => `
+    : accounts.map((a) => {
+      const typeOpts = ACCOUNT_TYPES.map(
+        (t) => `<option value="${t}"${t === a.type ? ' selected' : ''}>${escapeHtml(ACCOUNT_TYPE_LABELS[t])}</option>`,
+      ).join('');
+      return `
       <div class="card" style="cursor:default">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem">
           <div style="min-width:0;flex:1">
@@ -129,6 +134,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
             <div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.15rem">
               ${escapeHtml(ACCOUNT_TYPE_LABELS[a.type])}${a.institution ? ' · ' + escapeHtml(a.institution) : ''}
             </div>
+            ${a.notes ? `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.notes)}</div>` : ''}
           </div>
           <button type="button" onclick="openAcctPanel('${escapeHtml(a.id)}')" title="Edit account"
             style="flex-shrink:0;padding:0.2rem 0.3rem;background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:0.9rem;opacity:0.5;line-height:1;transition:opacity 0.12s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">✏️</button>
@@ -147,17 +153,23 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
               <label>Account Name</label>
               <input name="name" type="text" required value="${escapeHtml(a.name)}">
             </div>
-            <div class="form-group">
-              <label>Institution (optional)</label>
-              <input name="institution" type="text" value="${escapeHtml(a.institution ?? '')}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+              <div class="form-group">
+                <label>Type</label>
+                <select name="type">${typeOpts}</select>
+              </div>
+              <div class="form-group">
+                <label>Balance</label>
+                <input name="balance" type="number" step="0.01" min="0" required value="${a.balance}">
+              </div>
             </div>
             <div class="form-group">
-              <label>Balance</label>
-              <input name="balance" type="number" step="0.01" min="0" required value="${a.balance}">
+              <label>Institution (optional)</label>
+              <input name="institution" type="text" value="${escapeHtml(a.institution ?? '')}" placeholder="e.g. DBS">
             </div>
             <div class="form-group">
               <label>Notes (optional)</label>
-              <input name="notes" type="text" value="${escapeHtml(a.notes ?? '')}">
+              <input name="notes" type="text" value="${escapeHtml(a.notes ?? '')}" placeholder="e.g. joint account">
             </div>
             <button type="submit" class="btn-primary" style="width:100%;margin-bottom:0.75rem">Save changes</button>
           </form>
@@ -166,7 +178,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
             <button type="submit" style="background:none;border:none;color:var(--color-error);cursor:pointer;font-size:0.85rem;padding:0.25rem 0">Delete account</button>
           </form>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 
   const typeOptions = ACCOUNT_TYPES.map(
     (t) => `<option value="${t}">${escapeHtml(ACCOUNT_TYPE_LABELS[t])}</option>`,

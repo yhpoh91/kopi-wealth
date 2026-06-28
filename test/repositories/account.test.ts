@@ -64,14 +64,14 @@ describe('putAccount', () => {
 describe('updateAccount', () => {
   it('calls UpdateCommand with all fields', async () => {
     ddbMock.on(UpdateCommand).resolves({});
-    await expect(updateAccount('sub1', 'id1', { name: 'Updated', balance: 20000, institution: 'DBS', notes: 'note' }, '2024-01-02T00:00:00.000Z')).resolves.toBeUndefined();
+    await expect(updateAccount('sub1', 'id1', { name: 'Updated', type: 'checking', balance: 20000, institution: 'DBS', notes: 'note' }, '2024-01-02T00:00:00.000Z')).resolves.toBeUndefined();
     const call = ddbMock.commandCalls(UpdateCommand)[0];
-    expect(call.args[0].input.ExpressionAttributeValues).toMatchObject({ ':name': 'Updated', ':balance': 20000 });
+    expect(call.args[0].input.ExpressionAttributeValues).toMatchObject({ ':name': 'Updated', ':type': 'checking', ':balance': 20000 });
   });
 
   it('accepts undefined institution and notes', async () => {
     ddbMock.on(UpdateCommand).resolves({});
-    await expect(updateAccount('sub1', 'id1', { name: 'X', balance: 100 }, '2024-01-02T00:00:00.000Z')).resolves.toBeUndefined();
+    await expect(updateAccount('sub1', 'id1', { name: 'X', type: 'savings', balance: 100 }, '2024-01-02T00:00:00.000Z')).resolves.toBeUndefined();
     expect(ddbMock.commandCalls(UpdateCommand)).toHaveLength(1);
   });
 });
