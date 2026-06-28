@@ -110,6 +110,23 @@ functions:
           method: GET
           path: /
 
+  accounts:
+    handler: src/handlers/accounts.handler
+    name: wealth-${self:provider.stage}-accounts
+    events:
+      - httpApi:
+          method: GET
+          path: /accounts
+      - httpApi:
+          method: POST
+          path: /accounts
+      - httpApi:
+          method: POST
+          path: /accounts/{id}
+      - httpApi:
+          method: POST
+          path: /accounts/{id}/delete
+
   settings:
     handler: src/handlers/settings.handler
     name: wealth-${self:provider.stage}-settings

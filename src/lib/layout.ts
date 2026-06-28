@@ -1,7 +1,7 @@
 import layoutHtml from '../templates/layout.html';
 import { escapeHtml } from './html';
 
-export type NavPage = 'dashboard' | 'settings' | 'admin';
+export type NavPage = 'dashboard' | 'accounts' | 'settings' | 'admin';
 
 export interface LayoutOptions {
   title: string;
@@ -33,7 +33,8 @@ export function renderPage(opts: LayoutOptions): string {
     .replace('{{USER_PANEL_MODAL}}', userPanelModal)
     .replace('{{HIDE_NAV}}', opts.hideNav ? 'hidden' : '')
     .replace('{{MAIN_CLASS}}', opts.hideNav ? 'no-nav' : '')
-    .replace('{{NAV_DASHBOARD}}', nav('dashboard'));
+    .replace('{{NAV_DASHBOARD}}', nav('dashboard'))
+    .replace('{{NAV_ACCOUNTS}}', nav('accounts'));
 }
 
 function initials(name: string): string {
