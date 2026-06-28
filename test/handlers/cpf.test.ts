@@ -104,13 +104,19 @@ describe('GET /cpf', () => {
   it('shows CPF reference figures', async () => {
     const res = await handler(makeEvent('GET'), {} as never, () => {});
     const body = (res as { body: string }).body;
-    expect(body).toContain('106,500.00');
-    expect(body).toContain('213,000.00');
+    expect(body).toContain('110,200.00');
+    expect(body).toContain('220,400.00');
     expect(body).toContain('75,500.00');
   });
 
-  it('shows RA progress bar when CPF data exists', async () => {
+  it('shows SA progress bar when CPF data exists and RA is 0', async () => {
     mockGetCpf.mockResolvedValue(cpfRecord);
+    const res = await handler(makeEvent('GET'), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('SA Progress');
+  });
+
+  it('shows RA progress bar when RA > 0', async () => {
+    mockGetCpf.mockResolvedValue({ ...cpfRecord, ra: 50000 });
     const res = await handler(makeEvent('GET'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('RA Progress');
   });
@@ -195,19 +201,19 @@ describe('GET /cpf', () => {
   });
 
   it('shows BRS met label when RA >= BRS', async () => {
-    mockGetCpf.mockResolvedValue({ ...cpfRecord, ra: 110000 });
+    mockGetCpf.mockResolvedValue({ ...cpfRecord, ra: 111000 });
     const res = await handler(makeEvent('GET'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('BRS met');
   });
 
   it('shows FRS met label when RA >= FRS', async () => {
-    mockGetCpf.mockResolvedValue({ ...cpfRecord, ra: 215000 });
+    mockGetCpf.mockResolvedValue({ ...cpfRecord, ra: 221000 });
     const res = await handler(makeEvent('GET'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('FRS met');
   });
 
   it('shows ERS met label when RA >= ERS', async () => {
-    mockGetCpf.mockResolvedValue({ ...cpfRecord, ra: 430000 });
+    mockGetCpf.mockResolvedValue({ ...cpfRecord, ra: 441000 });
     const res = await handler(makeEvent('GET'), {} as never, () => {});
     expect((res as { body: string }).body).toContain('ERS met');
   });
@@ -221,6 +227,7 @@ describe('GET /cpf', () => {
 
 describe('POST /cpf', () => {
   const validBody = new URLSearchParams({ oa: '10000', sa: '20000', ma: '5000', ra: '0' }).toString();
+
 
   it('creates CPF record and redirects', async () => {
     const res = await handler(makeEvent('POST', validBody), {} as never, () => {});
@@ -265,5 +272,19 @@ describe('POST /cpf', () => {
     const res = await handler(makeEvent('POST', body), {} as never, () => {});
     expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cpf' } });
     expect(mockUpsertCpf).toHaveBeenCalledOnce();
+  });
+
+  it('treats missing RA as 0 (optional field)', async () => {
+    const body = new URLSearchParams({ oa: '10000', sa: '20000', ma: '5000' }).toString();
+    const res = await handler(makeEvent('POST', body), {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cpf' } });
+    expect(mockUpsertCpf.mock.calls[0][0].ra).toBe(0);
+  });
+
+  it('treats empty RA string as 0 (optional field)', async () => {
+    const body = new URLSearchParams({ oa: '10000', sa: '20000', ma: '5000', ra: '' }).toString();
+    const res = await handler(makeEvent('POST', body), {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cpf' } });
+    expect(mockUpsertCpf.mock.calls[0][0].ra).toBe(0);
   });
 });

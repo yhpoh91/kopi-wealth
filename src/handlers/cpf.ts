@@ -8,14 +8,16 @@ import { getCpf, upsertCpf, putCpfSnapshot } from '../repositories/cpf';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
 
-// CPF interest rates (p.a.)
+// CPF base interest rates (p.a.). Extra 1% on first $60k combined (capped $20k for OA):
+// under 55 → up to 5% p.a.; 55+ → up to 6% p.a. on first $30k, up to 5% on next $30k.
 const INTEREST_RATES = { oa: 2.5, sa: 4.0, ma: 4.0, ra: 4.0 };
 
-// CPF reference figures (2025, updated annually by CPF Board)
+// CPF reference figures for members turning 55 in 2026 (updated annually by CPF Board).
+// BHS is the 2025 figure ($75,500); 2026 figure to be confirmed when CPF Board publishes.
 const CPF_REF = {
-  brs: 106_500,
-  frs: 213_000,
-  ers: 426_000,
+  brs: 110_200,
+  frs: 220_400,
+  ers: 440_800,
   bhs: 75_500,
 };
 
@@ -46,7 +48,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const oa = parseFloat(params.oa ?? '');
     const sa = parseFloat(params.sa ?? '');
     const ma = parseFloat(params.ma ?? '');
-    const ra = parseFloat(params.ra ?? '');
+    const raRaw = params.ra;
+    const ra = raRaw === undefined || raRaw === '' ? 0 : parseFloat(raRaw);
 
     if ([oa, sa, ma, ra].some((v) => isNaN(v) || v < 0)) {
       return redirect('/cpf?error=invalid');
@@ -148,10 +151,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const accountsGrid = `
     <style>@media(min-width:500px){.cpf-grid{grid-template-columns:repeat(2,1fr)!important}}</style>
     <div class="cpf-grid" style="display:grid;grid-template-columns:1fr;gap:0.75rem;margin-bottom:1.25rem">
-      ${accountCard('Ordinary Account (OA)', 'oa', INTEREST_RATES.oa, 'Housing, education, investment')}
-      ${accountCard('Special Account (SA)', 'sa', INTEREST_RATES.sa, 'Retirement savings')}
-      ${accountCard('Medisave Account (MA)', 'ma', INTEREST_RATES.ma, 'Medical expenses & insurance', `Capped at BHS: SGD ${fmt(CPF_REF.bhs)}`)}
-      ${accountCard('Retirement Account (RA)', 'ra', INTEREST_RATES.ra, 'Monthly payouts from age 65', 'Created when you turn 55; funded from OA + SA')}
+      ${accountCard('Ordinary Account (OA)', 'oa', INTEREST_RATES.oa, 'Housing, education, insurance & investment', 'Up to 3.5% p.a. on first $20k of OA')}
+      ${accountCard('Special Account (SA)', 'sa', INTEREST_RATES.sa, 'Long-term retirement savings', 'Closed at 55 — balance transfers to Retirement Account')}
+      ${accountCard('MediSave Account (MA)', 'ma', INTEREST_RATES.ma, 'Hospitalisation, day surgery & approved outpatient', `BHS cap: SGD ${fmt(CPF_REF.bhs)} (est. 2025)`)}
+      ${accountCard('Retirement Account (RA)', 'ra', INTEREST_RATES.ra, 'Monthly CPF LIFE payouts from age 65', 'Created at 55 from your OA + SA balances')}
     </div>`;
 
   const refCard = `
@@ -175,19 +178,21 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           <div style="font-size:0.9rem;font-weight:600">SGD ${fmt(CPF_REF.bhs)}</div>
         </div>
       </div>
-      <div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.75rem">Updated annually by CPF Board. Figures apply to members turning 55 in 2025.</div>
+      <div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.75rem">Updated annually by CPF Board. Figures apply to members turning 55 in 2026.</div>
     </div>`;
 
-  const raTarget = cpf
+  const retirementProgress = cpf
     ? (() => {
-        const ra = cpf.ra;
-        const pct = CPF_REF.frs > 0 ? Math.min(100, (ra / CPF_REF.frs) * 100) : 0;
-        const label = ra >= CPF_REF.ers ? 'ERS met ✓' : ra >= CPF_REF.frs ? 'FRS met ✓' : ra >= CPF_REF.brs ? 'BRS met ✓' : 'Below BRS';
+        const useRa = cpf.ra > 0;
+        const value = useRa ? cpf.ra : cpf.sa;
+        const title = useRa ? 'RA Progress vs FRS' : 'SA Progress vs FRS (target by age 55)';
+        const pct = CPF_REF.frs > 0 ? Math.min(100, (value / CPF_REF.frs) * 100) : 0;
+        const label = value >= CPF_REF.ers ? 'ERS met ✓' : value >= CPF_REF.frs ? 'FRS met ✓' : value >= CPF_REF.brs ? 'BRS met ✓' : 'Below BRS';
         return `
         <div class="card" style="margin-bottom:1.25rem">
-          <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.5rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em">RA Progress vs FRS</div>
+          <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.5rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(title)}</div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
-            <div style="font-size:0.85rem">SGD ${escapeHtml(fmt(ra))} <span style="font-size:0.7rem;color:var(--color-text-muted)">of SGD ${fmt(CPF_REF.frs)}</span></div>
+            <div style="font-size:0.85rem">SGD ${escapeHtml(fmt(value))} <span style="font-size:0.7rem;color:var(--color-text-muted)">of SGD ${fmt(CPF_REF.frs)}</span></div>
             <div style="font-size:0.75rem;color:var(--color-accent)">${escapeHtml(label)}</div>
           </div>
           <div style="background:var(--color-border);border-radius:999px;height:6px;overflow:hidden">
@@ -222,11 +227,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
               <input name="ma" type="number" step="0.01" min="0" required value="${cpf ? cpf.ma : ''}" placeholder="0.00">
             </div>
             <div class="form-group">
-              <label>Retirement (RA)</label>
-              <input name="ra" type="number" step="0.01" min="0" required value="${cpf ? cpf.ra : ''}" placeholder="0.00">
+              <label>Retirement (RA) <span style="font-weight:400;color:var(--color-text-muted)">— age 55+</span></label>
+              <input name="ra" type="number" step="0.01" min="0" value="${cpf && cpf.ra ? cpf.ra : ''}" placeholder="0.00">
             </div>
           </div>
-          <div style="font-size:0.75rem;color:var(--color-text-muted);margin-bottom:1rem">All amounts in SGD. Enter balances as shown in your CPF statement.</div>
+          <div style="font-size:0.75rem;color:var(--color-text-muted);margin-bottom:1rem">All amounts in SGD. RA is created at age 55 — leave blank if you haven't turned 55.</div>
           <button type="submit" class="btn-primary" style="width:100%">Save</button>
         </form>
       </div>
@@ -242,7 +247,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ${errorBanner}
       ${summaryCard}
       ${accountsGrid}
-      ${cpf ? raTarget : ''}
+      ${cpf ? retirementProgress : ''}
       ${refCard}
       ${!cpf ? `<div class="card" style="text-align:center;color:var(--color-text-muted);padding:1.5rem 1rem;margin-bottom:1.25rem">No CPF data yet. Tap <strong>Update</strong> to enter your balances.</div>` : ''}
     </div>
