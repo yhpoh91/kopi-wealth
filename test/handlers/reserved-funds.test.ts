@@ -276,4 +276,24 @@ describe('GET /reserved-funds — EF card branches', () => {
     // leanTarget = 0, fatTarget = 0, pct = 100 → both met
     expect((res as { body: string }).body).toContain('Emergency Fund');
   });
+
+  it('shows — when savings FX rate unavailable', async () => {
+    const usdAccount = { ...sgdAccount, currency: 'USD', balance: 5000 };
+    mockQueryAccounts.mockResolvedValue([usdAccount]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-29' });
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent(), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('>—<');
+  });
+
+  it('shows — for total usable when both savings and investments are null', async () => {
+    const usdAccount = { ...sgdAccount, currency: 'USD', balance: 5000 };
+    const usdInvestment = { ...sgdInvestment, currency: 'USD', value: 3000 };
+    mockQueryAccounts.mockResolvedValue([usdAccount]);
+    mockQueryInvestments.mockResolvedValue([usdInvestment]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-29' });
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent(), {} as never, () => {});
+    expect((res as { body: string }).body).toContain('>—<');
+  });
 });
