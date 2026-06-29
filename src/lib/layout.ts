@@ -36,8 +36,7 @@ export function renderPage(opts: LayoutOptions): string {
     .replace('{{NAV_DASHBOARD}}', nav('dashboard'))
     .replace('{{NAV_ACCOUNTS}}', nav('accounts'))
     .replace('{{NAV_INVESTMENTS}}', nav('investments'))
-    .replace('{{NAV_GOALS}}', nav('goals'))
-    .replace('{{NAV_MORE}}', ['cpf', 'reserved-funds', 'liabilities', 'receivables', 'expenses', 'reports'].includes(opts.page ?? '') ? 'active' : '');
+    .replace('{{NAV_MORE}}', ['cpf', 'reserved-funds', 'liabilities', 'receivables', 'expenses', 'reports', 'goals'].includes(opts.page ?? '') ? 'active' : '');
 }
 
 function initials(name: string): string {
