@@ -70,7 +70,7 @@ Savings/investment capital reservation config (fixed + % of total, per savings/i
 
 ---
 
-## M10 — Liabilities ⬜
+## M10 — Liabilities ✅
 
 Add/update outstanding balance/delete loans, mortgages, credit cards. Liability snapshots. Auto-status (outstanding → partially_returned → settled). Net worth = Assets − Liabilities on dashboard.
 

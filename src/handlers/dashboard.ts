@@ -6,6 +6,7 @@ import { getSettings, putSettings } from '../repositories/financialSettings';
 import { queryByUser } from '../repositories/account';
 import { queryByUser as queryInvestments } from '../repositories/investment';
 import { getCpf } from '../repositories/cpf';
+import { queryByUser as queryLiabilities } from '../repositories/liability';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
@@ -35,10 +36,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? 'there';
   const currency = settings?.currency ?? 'SGD';
 
-  const [accounts, investments, cpf] = await Promise.all([
+  const [accounts, investments, cpf, liabilities] = await Promise.all([
     queryByUser(auth.session.sub),
     queryInvestments(auth.session.sub),
     getCpf(auth.session.sub),
+    queryLiabilities(auth.session.sub),
   ]);
   let savingsDisplay = '—';
   let savingsNote = '';
@@ -127,6 +129,77 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
 
+  // Liabilities total in display currency (active only)
+  let liabTotal = 0;
+  let liabPartial = false;
+  for (const l of liabilities.filter((l) => l.status !== 'settled')) {
+    if (l.currency === currency) {
+      liabTotal += l.outstandingAmount;
+    } else {
+      const converted = convertAmount(l.outstandingAmount, l.currency, currency, rates);
+      if (converted !== null && !fxFailed) {
+        liabTotal += converted;
+      } else {
+        liabPartial = true;
+      }
+    }
+  }
+  const liabDisplay = liabilities.filter((l) => l.status !== 'settled').length > 0
+    ? fmt(liabTotal) + (liabPartial || fxFailed ? ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>' : '')
+    : null;
+
+  // Net worth = savings + investments + cpf − liabilities (null if any component with data can't be converted)
+  const hasSavingsData = accounts.length > 0;
+  const hasInvestData = investments.length > 0;
+  const hasCpfData = cpf !== null;
+  const hasLiabData = liabilities.filter((l) => l.status !== 'settled').length > 0;
+  const savingsOk = !hasSavingsData || (!fxFailed && savingsDisplay !== '—');
+  const investOk = !hasInvestData || (!fxFailed && investDisplay !== '—');
+  const liabOk = !hasLiabData || (!liabPartial && !fxFailed);
+  const hasAnyData = hasSavingsData || hasInvestData || hasCpfData || hasLiabData;
+  const netWorthKnown = hasAnyData && savingsOk && investOk && liabOk;
+
+  let savingsNum = 0;
+  if (hasSavingsData && savingsOk) {
+    for (const a of accounts) {
+      if (a.currency === currency) { savingsNum += a.balance; }
+      else {
+        const c = convertAmount(a.balance, a.currency, currency, rates);
+        if (c !== null) savingsNum += c;
+      }
+    }
+  }
+  let investNum = 0;
+  if (hasInvestData && investOk) {
+    for (const i of investments) {
+      if (i.currency === currency) { investNum += i.value; }
+      else {
+        const c = convertAmount(i.value, i.currency, currency, rates);
+        if (c !== null) investNum += c;
+      }
+    }
+  }
+  let cpfNum = 0;
+  if (hasCpfData) {
+    const cpfSgd = cpf!.oa + cpf!.sa + cpf!.ma + cpf!.ra;
+    if (currency === 'SGD') { cpfNum = cpfSgd; }
+    else {
+      const c = convertAmount(cpfSgd, 'SGD', currency, rates);
+      cpfNum = c !== null ? c : cpfSgd;
+    }
+  }
+
+  const netWorth = netWorthKnown ? savingsNum + investNum + cpfNum - liabTotal : null;
+  const netWorthColor = netWorth !== null && netWorth < 0 ? 'var(--color-error)' : 'var(--color-accent)';
+  const netWorthDisplay = netWorth !== null
+    ? `${escapeHtml(currency)} ${escapeHtml(fmt(netWorth))}`
+    : `${escapeHtml(currency)} —`;
+  const netWorthSubtext = !hasAnyData
+    ? 'Add accounts, investments or liabilities to see net worth'
+    : netWorth === null
+      ? 'Some currencies could not be converted'
+      : `As of ${escapeHtml(clock.today())}`;
+
   const body = `
     <div style="max-width:640px;margin:0 auto">
       <h2 style="font-size:1.3rem;margin-bottom:1.5rem">
@@ -135,8 +208,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
       <div class="card" style="margin-bottom:1rem">
         <div style="font-size:0.8rem;color:var(--color-text-muted);margin-bottom:0.25rem">Net Worth</div>
-        <div style="font-size:2rem;font-weight:700;color:var(--color-accent)">${escapeHtml(currency)} —</div>
-        <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.25rem">Add investments and liabilities to see net worth</div>
+        <div style="font-size:2rem;font-weight:700;color:${netWorthColor}">${netWorthDisplay}</div>
+        <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.25rem">${escapeHtml(netWorthSubtext)}</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem">
@@ -151,6 +224,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         <div class="card">
           <div style="font-size:0.75rem;color:var(--color-text-muted)">CPF</div>
           <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem">${cpf ? escapeHtml(currency) + ' ' + cpfDisplay + cpfNote : '—'}</div>
+        </div>
+        <div class="card">
+          <div style="font-size:0.75rem;color:var(--color-text-muted)">Liabilities</div>
+          <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem;color:${liabDisplay ? 'var(--color-error)' : 'inherit'}">${liabDisplay ? escapeHtml(currency) + ' ' + liabDisplay : '—'}</div>
         </div>
       </div>
 
