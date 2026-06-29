@@ -58,15 +58,15 @@ Update OA/SA/MA/RA balances. CPF snapshots. Dashboard shows CPF total. RA is opt
 
 ---
 
-## M8 — Investments 🚧
+## M8 — Investments ✅
 
 Add/update value/delete investment portfolios. Investment snapshots. Dashboard shows total investments. Type-grouped card grid with FX conversion. 10 extensible investment types.
 
 ---
 
-## M9 — Reserved Funds + Emergency Fund ⬜
+## M9 — Reserved Funds + Emergency Fund ✅
 
-Savings/investment capital reservation config. Budget-based emergency fund config. Available funds calculation. Dashboard: EF status card and available funds.
+Savings/investment capital reservation config (fixed + % of total, per savings/investments bucket). Budget-based emergency fund config (lean/fat monthly × months). Available funds calculation. GET/POST `/reserved-funds` page. Nav restructured: Goals tab replaces CPF; More drawer contains CPF, Reserved Funds, Liabilities, Receivables, Expenses, Reports.
 
 ---
 

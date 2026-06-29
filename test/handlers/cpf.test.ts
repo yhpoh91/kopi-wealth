@@ -287,4 +287,24 @@ describe('POST /cpf', () => {
     expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cpf' } });
     expect(mockUpsertCpf.mock.calls[0][0].ra).toBe(0);
   });
+
+  it('redirects on invalid when oa param is missing', async () => {
+    const body = new URLSearchParams({ sa: '20000', ma: '5000' }).toString();
+    const res = await handler(makeEvent('POST', body), {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cpf?error=invalid' } });
+  });
+});
+
+describe('GET /cpf — edge cases', () => {
+  it('falls back to SGD when settings is null', async () => {
+    mockGetSettings.mockResolvedValue(null);
+    const res = await handler(makeEvent('GET'), {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 200 });
+  });
+
+  it('handles undefined rawQueryString', async () => {
+    const event = { requestContext: { http: { method: 'GET' } }, rawPath: '/cpf', rawQueryString: undefined, cookies: [], headers: {} } as never;
+    const res = await handler(event, {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 200 });
+  });
 });

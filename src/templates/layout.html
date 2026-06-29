@@ -223,17 +223,27 @@
       <span class="nav-icon">📈</span>
       <span>Investments</span>
     </a>
-    <a href="/cpf" class="nav-item {{NAV_CPF}}">
-      <span class="nav-icon">🏛️</span>
-      <span>CPF</span>
-    </a>
+    <button class="nav-item {{NAV_MORE}}" onclick="openMore()">
+      <span class="nav-icon">⋯</span>
+      <span>More</span>
+    </button>
   </nav>
+
+  <div class="panel-overlay" id="more-overlay" onclick="closeMore()">
+    <div class="panel-sheet" onclick="event.stopPropagation()">
+      <div style="font-size:0.75rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem;">More</div>
+      <a href="/cpf" class="panel-row" onclick="closeMore()"><span>🏛️</span> CPF</a>
+      <a href="/reserved-funds" class="panel-row" onclick="closeMore()"><span>🛡️</span> Reserved Funds</a>
+    </div>
+  </div>
 
   {{USER_PANEL_MODAL}}
 
   <script>
     function openPanel(){document.getElementById('user-overlay').classList.add('open');}
     function closePanel(){document.getElementById('user-overlay').classList.remove('open');}
+    function openMore(){document.getElementById('more-overlay').classList.add('open');}
+    function closeMore(){document.getElementById('more-overlay').classList.remove('open');}
     function toggleTheme(){
       var h=document.documentElement;
       var t=h.getAttribute('data-theme')==='dark'?'light':'dark';

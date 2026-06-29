@@ -63,4 +63,13 @@ describe('GET / (landing)', () => {
     expect(res).toMatchObject({ statusCode: 200 });
     expect(mockGetSession).not.toHaveBeenCalled();
   });
+
+  it('falls back to headers.cookie when event.cookies is undefined', async () => {
+    const event = { requestContext: { http: { method: 'GET' } }, rawPath: '/', rawQueryString: '', cookies: undefined, headers: { cookie: 'sid=s1' }, body: undefined, isBase64Encoded: false } as never;
+    mockParseCookies.mockReturnValue({ sid: 's1' });
+    mockGetSession.mockResolvedValue(session);
+    const res = await handler(event, {} as never, () => {});
+    expect(res).toMatchObject({ statusCode: 302 });
+    expect(mockParseCookies).toHaveBeenCalledWith('sid=s1');
+  });
 });
