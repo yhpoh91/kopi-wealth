@@ -146,6 +146,23 @@ functions:
           method: POST
           path: /accounts/{id}/delete
 
+  investments:
+    handler: src/handlers/investments.handler
+    name: wealth-${self:provider.stage}-investments
+    events:
+      - httpApi:
+          method: GET
+          path: /investments
+      - httpApi:
+          method: POST
+          path: /investments
+      - httpApi:
+          method: POST
+          path: /investments/{id}
+      - httpApi:
+          method: POST
+          path: /investments/{id}/delete
+
   settings:
     handler: src/handlers/settings.handler
     name: wealth-${self:provider.stage}-settings

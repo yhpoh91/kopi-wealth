@@ -52,15 +52,15 @@ Add/update balance/delete savings and checking accounts. Account snapshots. Dash
 
 ---
 
-## M7 — CPF ⬜
+## M7 — CPF ✅
 
-Update OA/SA/MA/RA balances. CPF snapshots. Dashboard shows CPF total.
+Update OA/SA/MA/RA balances. CPF snapshots. Dashboard shows CPF total. RA is optional (only exists after age 55). 2026 CPF reference figures (BRS/FRS/ERS).
 
 ---
 
-## M8 — Investments ⬜
+## M8 — Investments 🚧
 
-Add/update value/delete investment portfolios. Investment snapshots. Dashboard shows total investments and current assets.
+Add/update value/delete investment portfolios. Investment snapshots. Dashboard shows total investments. Type-grouped card grid with FX conversion. 10 extensible investment types.
 
 ---
 

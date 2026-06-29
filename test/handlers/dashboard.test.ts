@@ -7,6 +7,7 @@ vi.mock('../../src/repositories/financialSettings', () => ({
   putSettings: vi.fn(),
 }));
 vi.mock('../../src/repositories/account', () => ({ queryByUser: vi.fn() }));
+vi.mock('../../src/repositories/investment', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/cpf', () => ({ getCpf: vi.fn() }));
 vi.mock('../../src/lib/fx', () => ({
   getOrFetchRates: vi.fn(),
@@ -18,6 +19,7 @@ import { requireSession } from '../../src/lib/auth-middleware';
 import { getUser } from '../../src/repositories/user';
 import { getSettings, putSettings } from '../../src/repositories/financialSettings';
 import { queryByUser } from '../../src/repositories/account';
+import { queryByUser as queryInvestments } from '../../src/repositories/investment';
 import { getCpf } from '../../src/repositories/cpf';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 
@@ -26,6 +28,7 @@ const mockGetUser = vi.mocked(getUser);
 const mockGetSettings = vi.mocked(getSettings);
 const mockPutSettings = vi.mocked(putSettings);
 const mockQueryByUser = vi.mocked(queryByUser);
+const mockQueryInvestments = vi.mocked(queryInvestments);
 const mockGetCpf = vi.mocked(getCpf);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
@@ -43,6 +46,7 @@ beforeEach(() => {
   mockGetSettings.mockResolvedValue(settings);
   mockPutSettings.mockResolvedValue(undefined);
   mockQueryByUser.mockResolvedValue([]);
+  mockQueryInvestments.mockResolvedValue([]);
   mockGetCpf.mockResolvedValue(null);
   mockGetOrFetchRates.mockResolvedValue({ rates: { MYR: 3.45 }, date: '2026-06-28' });
   mockConvertAmount.mockImplementation((amount, from, to, rates) => {
@@ -192,5 +196,33 @@ describe('GET /', () => {
     mockGetOrFetchRates.mockRejectedValue(new Error('fail'));
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('(SGD)');
+  });
+
+  it('shows — for investments when none exist', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Investments');
+  });
+
+  it('shows investments total for same-currency investments', async () => {
+    const inv = { PK: 'INVEST#sub1', SK: 'INVEST#id1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#2024-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'IWDA', type: 'etf' as const, currency: 'SGD', value: 15000, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+    mockQueryInvestments.mockResolvedValue([inv]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('15,000.00');
+  });
+
+  it('converts foreign currency investments to settings currency', async () => {
+    const inv = { PK: 'INVEST#sub1', SK: 'INVEST#id1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#2024-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'IWDA', type: 'etf' as const, currency: 'MYR', value: 3450, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+    mockQueryInvestments.mockResolvedValue([inv]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('1,000.00');
+  });
+
+  it('shows partial for investments when FX fails', async () => {
+    const inv = { PK: 'INVEST#sub1', SK: 'INVEST#id1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#2024-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'IWDA', type: 'etf' as const, currency: 'MYR', value: 3450, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+    mockQueryInvestments.mockResolvedValue([inv]);
+    mockGetOrFetchRates.mockRejectedValue(new Error('network error'));
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('partial');
   });
 });
