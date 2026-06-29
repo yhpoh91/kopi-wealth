@@ -317,7 +317,7 @@ function buildConfigForm(settings: FinancialSettings | null): string {
           </div>
         </div>
       </div>
-      <button type="submit" class="btn-primary" style="width:100%">Save</button>
+      <button type="submit" class="btn-primary" style="width:100%;margin-bottom:2rem">Save</button>
     </form>`;
 }
 
