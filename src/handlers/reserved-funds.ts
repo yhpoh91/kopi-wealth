@@ -188,35 +188,35 @@ function buildStatusSection(
   const cur = escapeHtml(currency);
   const fmtVal = (v: number | null) => v !== null ? `${cur} ${escapeHtml(fmt(v))}` : '—';
 
-  const statusCard = `
-    <div class="card" style="margin-bottom:1.25rem">
-      <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.75rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em">Status</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+  const totalUsable = (availableSavings !== null || availableInvestments !== null)
+    ? (availableSavings ?? 0) + (availableInvestments ?? 0)
+    : null;
+
+  const bucketRow = (label: string, total: number | null, reserved: number, available: number | null) => `
+    <div style="border-top:1px solid var(--color-border);padding-top:0.75rem;margin-top:0.75rem">
+      <div style="font-size:0.75rem;font-weight:600;color:var(--color-text-muted);margin-bottom:0.5rem">${label}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
         <div>
-          <div style="font-size:0.7rem;color:var(--color-text-muted)">Total Savings</div>
-          <div style="font-size:0.95rem;font-weight:600">${fmtVal(savingsTotal)}</div>
+          <div style="font-size:0.65rem;color:var(--color-text-muted)">Total</div>
+          <div style="font-size:0.9rem;font-weight:600">${fmtVal(total)}</div>
         </div>
         <div>
-          <div style="font-size:0.7rem;color:var(--color-text-muted)">Reserved (Savings)</div>
-          <div style="font-size:0.95rem;font-weight:600">${fmtVal(reservedSavings)}</div>
+          <div style="font-size:0.65rem;color:var(--color-text-muted)">Reserved</div>
+          <div style="font-size:0.9rem;font-weight:600">−${fmtVal(reserved)}</div>
         </div>
         <div>
-          <div style="font-size:0.7rem;color:var(--color-text-muted)">Available Savings</div>
-          <div style="font-size:0.95rem;font-weight:600;color:var(--color-accent)">${fmtVal(availableSavings)}</div>
-        </div>
-        <div>
-          <div style="font-size:0.7rem;color:var(--color-text-muted)">Total Investments</div>
-          <div style="font-size:0.95rem;font-weight:600">${fmtVal(investmentsTotal)}</div>
-        </div>
-        <div>
-          <div style="font-size:0.7rem;color:var(--color-text-muted)">Reserved (Investments)</div>
-          <div style="font-size:0.95rem;font-weight:600">${fmtVal(reservedInvestments)}</div>
-        </div>
-        <div>
-          <div style="font-size:0.7rem;color:var(--color-text-muted)">Available Investments</div>
-          <div style="font-size:0.95rem;font-weight:600;color:var(--color-accent)">${fmtVal(availableInvestments)}</div>
+          <div style="font-size:0.65rem;color:var(--color-text-muted)">Usable</div>
+          <div style="font-size:0.9rem;font-weight:700;color:var(--color-accent)">${fmtVal(available)}</div>
         </div>
       </div>
+    </div>`;
+
+  const statusCard = `
+    <div class="card" style="margin-bottom:1.25rem">
+      <div style="font-size:0.75rem;color:var(--color-text-muted);margin-bottom:0.25rem">Total Usable</div>
+      <div style="font-size:1.75rem;font-weight:700;color:var(--color-accent)">${fmtVal(totalUsable)}</div>
+      ${bucketRow('Savings 🏦', savingsTotal, reservedSavings, availableSavings)}
+      ${bucketRow('Investments 📈', investmentsTotal, reservedInvestments, availableInvestments)}
     </div>`;
 
   const efCard = ef
