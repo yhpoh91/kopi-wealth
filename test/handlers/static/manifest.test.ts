@@ -16,4 +16,13 @@ describe('GET /manifest.json', () => {
       display: 'standalone',
     });
   });
+
+  it('includes SVG icons with any and maskable purposes', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    const manifest = JSON.parse((res as { body: string }).body);
+    const purposes = manifest.icons.map((i: { purpose: string }) => i.purpose);
+    expect(purposes).toContain('any');
+    expect(purposes).toContain('maskable');
+    expect(manifest.icons.every((i: { src: string }) => i.src === '/icon.svg')).toBe(true);
+  });
 });

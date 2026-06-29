@@ -190,6 +190,14 @@ functions:
           method: GET
           path: /service-worker.js
 
+  icon:
+    handler: src/handlers/static/icon.handler
+    name: wealth-${self:provider.stage}-icon
+    events:
+      - httpApi:
+          method: GET
+          path: /icon.svg
+
 resources:
   Resources:
     WealthDataTable:
