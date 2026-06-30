@@ -8,9 +8,13 @@ import { queryByUser as queryInvestments } from '../repositories/investment';
 import { getCpf } from '../repositories/cpf';
 import { queryByUser as queryLiabilities } from '../repositories/liability';
 import { queryByUser as queryReceivables } from '../repositories/receivable';
+import { queryByUser as queryGoals } from '../repositories/goal';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
+import { calcReservedFunds, calcAvailableFunds } from '../lib/finance/reserved-funds';
+import { resolveTrackedValue, calcGoalProgress } from '../lib/finance/goal';
+import type { GoalMetrics } from '../lib/finance/goal';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSession(event);
@@ -37,12 +41,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? 'there';
   const currency = settings?.currency ?? 'SGD';
 
-  const [accounts, investments, cpf, liabilities, receivables] = await Promise.all([
+  const [accounts, investments, cpf, liabilities, receivables, goals] = await Promise.all([
     queryByUser(auth.session.sub),
     queryInvestments(auth.session.sub),
     getCpf(auth.session.sub),
     queryLiabilities(auth.session.sub),
     queryReceivables(auth.session.sub),
+    queryGoals(auth.session.sub),
   ]);
   let savingsDisplay = '—';
   let savingsNote = '';
@@ -223,6 +228,58 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ? 'Some currencies could not be converted'
       : `As of ${escapeHtml(clock.today())}`;
 
+  // Build GoalMetrics for dashboard goal progress
+  const goalMetrics: GoalMetrics = {
+    netWorth,
+    currentAssets: netWorthKnown ? savingsNum + investNum + cpfNum + recvTotal : null,
+    investableAssets: netWorthKnown ? savingsNum + investNum : null,
+    totalSavings: hasSavingsData ? savingsNum : 0,
+    totalInvestments: hasInvestData ? investNum : 0,
+    cpfTotal: hasCpfData ? cpfNum : null,
+    availableFunds: (() => {
+      if (!settings) return null;
+      const s = hasSavingsData ? savingsNum : null;
+      const inv = hasInvestData ? investNum : null;
+      if (s === null || inv === null) return null;
+      const { reservedSavings, reservedInvestments } = calcReservedFunds(s, inv, settings);
+      const { availableSavings, availableInvestments } = calcAvailableFunds(s, inv, reservedSavings, reservedInvestments);
+      return availableSavings! + availableInvestments!;
+    })(),
+  };
+
+  const fmt2 = fmt;
+  const activeGoals = goals
+    .filter((g) => g.status === 'active')
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt))
+    .slice(0, 4);
+
+  const goalCards = activeGoals.map((g) => {
+    const currentValue = resolveTrackedValue(g.tracksAgainst, goalMetrics);
+    const progress = currentValue !== null && g.targetAmount > 0 ? calcGoalProgress(currentValue, g.targetAmount) : null;
+    const progressBar = progress !== null
+      ? `<div style="background:var(--color-border);border-radius:999px;height:3px;overflow:hidden;margin:0.4rem 0 0.2rem">
+           <div style="background:var(--color-accent);height:100%;width:${escapeHtml(progress.toFixed(1))}%;border-radius:999px"></div>
+         </div>
+         <div style="font-size:0.65rem;color:var(--color-text-muted)">${escapeHtml(progress.toFixed(1))}% · ${escapeHtml(currency)} ${escapeHtml(fmt2(currentValue!))} of ${escapeHtml(fmt2(g.targetAmount))}</div>`
+      : g.targetAmount > 0
+        ? `<div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.3rem">Target: ${escapeHtml(currency)} ${escapeHtml(fmt2(g.targetAmount))}</div>`
+        : '<div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.3rem">No target set</div>';
+    return `<div class="card" style="padding:0.75rem">
+      <div style="font-weight:600;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(g.name)}</div>
+      ${progressBar}
+    </div>`;
+  }).join('');
+
+  const goalsSection = activeGoals.length > 0 ? `
+    <div style="margin-bottom:1rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+        <div style="font-size:0.8rem;font-weight:600;color:var(--color-text-muted)">Active Goals</div>
+        <a href="/goals" style="font-size:0.75rem;color:var(--color-accent);text-decoration:none">View all →</a>
+      </div>
+      <style>@media(min-width:600px){.goal-grid{grid-template-columns:repeat(2,1fr)!important}}</style>
+      <div class="goal-grid" style="display:grid;grid-template-columns:1fr;gap:0.5rem">${goalCards}</div>
+    </div>` : '';
+
   const body = `
     <div style="max-width:640px;margin:0 auto">
       <h2 style="font-size:1.3rem;margin-bottom:1.5rem">
@@ -265,6 +322,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           <a href="/accounts" style="color:var(--color-accent)">Add your first account</a> to get started.
         </div>
       </div>` : ''}
+      ${goalsSection}
     </div>`;
 
   return {
