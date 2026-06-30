@@ -191,6 +191,23 @@ functions:
           method: POST
           path: /liabilities/{id}/delete
 
+  receivables:
+    handler: src/handlers/receivables.handler
+    name: wealth-${self:provider.stage}-receivables
+    events:
+      - httpApi:
+          method: GET
+          path: /receivables
+      - httpApi:
+          method: POST
+          path: /receivables
+      - httpApi:
+          method: POST
+          path: /receivables/{id}
+      - httpApi:
+          method: POST
+          path: /receivables/{id}/delete
+
   settings:
     handler: src/handlers/settings.handler
     name: wealth-${self:provider.stage}-settings
