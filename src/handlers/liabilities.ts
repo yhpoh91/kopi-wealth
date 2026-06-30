@@ -336,6 +336,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         document.getElementById('delete-form').action = '/liabilities/' + id + '/delete';
         document.getElementById('delete-overlay').classList.add('open');
       }
+      document.querySelectorAll('.fx-tip').forEach(function(tip){
+        var el=tip.parentElement;
+        el.addEventListener('mouseenter',function(){tip.style.display='block';});
+        el.addEventListener('mouseleave',function(){tip.style.display='none';});
+        el.addEventListener('focus',function(){tip.style.display='block';});
+        el.addEventListener('blur',function(){tip.style.display='none';});
+      });
     </script>`;
 
   return {

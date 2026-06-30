@@ -396,6 +396,18 @@ const tooltipText = ratesDate ? `Rate as of ${ratesDate}` : 'Rate unavailable';
 
 Use CSS `position:relative` wrapper with an absolutely-positioned tooltip `<span>` hidden by default, shown on `mouseenter`/`focus` via JS. The tooltip text is rendered server-side; only the show/hide is client JS.
 
+**Critical: the JS event wiring must be included in the page's `<script>` block.** Without it, the tooltip element is in the DOM but never shown. Add this to every handler that renders `.fx-tip` tooltips:
+
+```js
+document.querySelectorAll('.fx-tip').forEach(function(tip){
+  var el=tip.parentElement;
+  el.addEventListener('mouseenter',function(){tip.style.display='block';});
+  el.addEventListener('mouseleave',function(){tip.style.display='none';});
+  el.addEventListener('focus',function(){tip.style.display='block';});
+  el.addEventListener('blur',function(){tip.style.display='none';});
+});
+```
+
 ---
 
 ## Validation Pattern (POST handlers)
