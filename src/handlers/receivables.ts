@@ -140,10 +140,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const foreignCurrencies = [...new Set(receivables.filter((r) => r.currency !== currency).map((r) => r.currency))];
   let rates: Record<string, number> = {};
+  let ratesDate: string | undefined;
   let fxFailed = false;
   if (foreignCurrencies.length > 0) {
     try {
-      ({ rates } = await getOrFetchRates(currency));
+      ({ rates, date: ratesDate } = await getOrFetchRates(currency));
     } catch {
       fxFailed = true;
     }
@@ -173,9 +174,20 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const pct = r.originalAmount > 0
       ? Math.max(0, Math.min(100, ((r.originalAmount - Math.min(r.outstandingAmount, r.originalAmount)) / r.originalAmount) * 100))
       : 0;
-    const convertedOutstanding = r.currency !== currency ? convertAmount(r.outstandingAmount, r.currency, currency, rates) : null;
-    const convertedLine = convertedOutstanding !== null
-      ? `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">≈ ${escapeHtml(currency)} ${escapeHtml(fmt(convertedOutstanding))}</div>`
+    const isForeign = r.currency !== currency;
+    const convertedOutstanding = isForeign ? convertAmount(r.outstandingAmount, r.currency, currency, rates) : null;
+    const rate = isForeign && !fxFailed ? rates[r.currency] : undefined;
+    const rateLabel = rate !== undefined
+      ? `1 ${escapeHtml(r.currency)} = ${escapeHtml((1 / rate).toLocaleString('en-SG', { minimumFractionDigits: 4, maximumFractionDigits: 4 }))} ${escapeHtml(currency)}`
+      : '';
+    const tooltipText = ratesDate ? `Rate as of ${escapeHtml(ratesDate)}` : 'Rate unavailable';
+    const rateInfo = rateLabel
+      ? ` <span style="position:relative;display:inline-block;cursor:help" tabindex="0">ℹ️<span style="display:none;position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:0.65rem;white-space:nowrap;padding:0.2rem 0.4rem;border-radius:0.3rem;pointer-events:none" class="fx-tip">${tooltipText}</span></span>`
+      : '';
+    const convertedLine = isForeign
+      ? convertedOutstanding !== null
+        ? `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">≈ ${escapeHtml(currency)} ${escapeHtml(fmt(convertedOutstanding))} <span style="opacity:0.7">(${rateLabel})</span>${rateInfo}</div>`
+        : `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">≈ ${escapeHtml(currency)} —</div>`
       : '';
     return `
     <div class="card" style="margin-bottom:0.75rem${isSettled ? ';opacity:0.6' : ''}">

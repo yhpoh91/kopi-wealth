@@ -336,13 +336,24 @@ describe('POST /liabilities/:id/delete', () => {
 });
 
 describe('GET /liabilities — per-card converted amount', () => {
-  it('shows ≈ base currency amount when liability is foreign currency and rate available', async () => {
+  it('shows ≈ amount with rate label and tooltip when foreign currency and rate available', async () => {
     const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
     mockQueryByUser.mockResolvedValue([foreignLiab]);
-    mockConvertAmount.mockImplementation((amount, from) => from === 'USD' ? amount * 1.35 : null);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '2026-06-29' });
+    mockConvertAmount.mockImplementation((amount, from) => from === 'USD' ? amount / 0.74 : null);
     const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
     expect(res.body).toContain('≈ SGD');
-    expect(res.body).toContain('1,350.00');
+    expect(res.body).toContain('1 USD =');
+    expect(res.body).toContain('ℹ️');
+    expect(res.body).toContain('Rate as of 2026-06-29');
+  });
+
+  it('shows ≈ SGD — when foreign rate convert returns null', async () => {
+    const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignLiab]);
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).toContain('≈ SGD —');
   });
 
   it('does not show ≈ line when liability is base currency', async () => {
@@ -351,11 +362,12 @@ describe('GET /liabilities — per-card converted amount', () => {
     expect(res.body).not.toContain('≈ SGD');
   });
 
-  it('does not show ≈ line when foreign rate is unavailable', async () => {
+  it('shows Rate unavailable tooltip when ratesDate is absent', async () => {
     const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
     mockQueryByUser.mockResolvedValue([foreignLiab]);
-    mockConvertAmount.mockReturnValue(null);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '' });
+    mockConvertAmount.mockImplementation((amount, from) => from === 'USD' ? amount / 0.74 : null);
     const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
-    expect(res.body).not.toContain('≈ SGD');
+    expect(res.body).toContain('Rate unavailable');
   });
 });
