@@ -134,11 +134,22 @@ describe('GET /liabilities', () => {
     expect(mockGetOrFetchRates).toHaveBeenCalledWith('SGD');
   });
 
-  it('shows partial note when FX conversion unavailable', async () => {
+  it('shows — when all active liabilities are foreign and FX unavailable', async () => {
     const usdLiab = { ...liab, currency: 'USD' };
     mockQueryByUser.mockResolvedValue([usdLiab]);
     mockConvertAmount.mockReturnValue(null);
     const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('SGD 0.00');
+    expect(res.body).toContain('partial');
+  });
+
+  it('shows partial total when some same-currency and some unconverted', async () => {
+    const usdLiab = { ...liab, id: 'id3', SK: 'LIAB#id3', currency: 'USD' };
+    const sgdLiab = { ...liab, outstandingAmount: 300000 };
+    mockQueryByUser.mockResolvedValue([sgdLiab, usdLiab]);
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).toContain('SGD 300,000.00');
     expect(res.body).toContain('partial');
   });
 
@@ -321,5 +332,42 @@ describe('POST /liabilities/:id/delete', () => {
     expect(res.statusCode).toBe(302);
     expect(res.headers.Location).toBe('/liabilities');
     expect(mockSoftDelete).toHaveBeenCalledWith('sub1', 'id1', 'sub1', '2026-06-29T10:00:00.000Z');
+  });
+});
+
+describe('GET /liabilities — per-card converted amount', () => {
+  it('shows ≈ amount with rate label and tooltip when foreign currency and rate available', async () => {
+    const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignLiab]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '2026-06-29' });
+    mockConvertAmount.mockImplementation((amount, from) => from === 'USD' ? amount / 0.74 : null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).toContain('≈ SGD');
+    expect(res.body).toContain('1 USD =');
+    expect(res.body).toContain('ℹ️');
+    expect(res.body).toContain('Rate as of 2026-06-29');
+  });
+
+  it('shows ≈ SGD — when foreign rate convert returns null', async () => {
+    const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignLiab]);
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).toContain('≈ SGD —');
+  });
+
+  it('does not show ≈ line when liability is base currency', async () => {
+    mockQueryByUser.mockResolvedValue([liab]);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('≈ SGD');
+  });
+
+  it('shows Rate unavailable tooltip when ratesDate is absent', async () => {
+    const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignLiab]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '' });
+    mockConvertAmount.mockImplementation((amount, from) => from === 'USD' ? amount / 0.74 : null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).toContain('Rate unavailable');
   });
 });

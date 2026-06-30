@@ -5,19 +5,17 @@ import { renderPage } from '../lib/layout';
 import { escapeHtml } from '../lib/html';
 import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
-import { getLiability, queryByUser, putLiability, updateLiability, softDelete, putSnapshot } from '../repositories/liability';
+import { getReceivable, queryByUser, putReceivable, updateReceivable, softDelete, putSnapshot } from '../repositories/receivable';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
-import { calcLiabilityStatus } from '../lib/finance/liability';
-import type { LiabilityType } from '../types/liability';
+import { calcReceivableStatus } from '../lib/finance/receivable';
+import type { ReceivableType } from '../types/receivable';
 
-const LIABILITY_TYPES: LiabilityType[] = ['mortgage', 'personal_loan', 'car_loan', 'student_loan', 'credit_card', 'other'];
-const LIABILITY_TYPE_LABELS: Record<LiabilityType, string> = {
-  mortgage: 'Mortgage',
+const RECEIVABLE_TYPES: ReceivableType[] = ['personal_loan', 'rental_deposit', 'business_loan', 'other'];
+const RECEIVABLE_TYPE_LABELS: Record<ReceivableType, string> = {
   personal_loan: 'Personal Loan',
-  car_loan: 'Car Loan',
-  student_loan: 'Student Loan',
-  credit_card: 'Credit Card',
+  rental_deposit: 'Rental Deposit',
+  business_loan: 'Business Loan',
   other: 'Other',
 };
 const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
@@ -25,8 +23,8 @@ const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 const fmt = (n: number) =>
   n.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const STATUS_LABELS = { outstanding: 'Outstanding', partially_returned: 'Partial', settled: 'Settled' };
-const STATUS_COLORS = { outstanding: 'var(--color-error)', partially_returned: 'var(--color-accent)', settled: 'var(--color-text-muted)' };
+const STATUS_LABELS = { outstanding: 'Outstanding', partially_received: 'Partial', settled: 'Settled' };
+const STATUS_COLORS = { outstanding: 'var(--color-accent)', partially_received: 'var(--color-accent)', settled: 'var(--color-text-muted)' };
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSession(event);
@@ -34,7 +32,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const method = event.requestContext.http.method;
   const pathParts = event.rawPath.split('/').filter(Boolean);
-  const liabId = pathParts[1];
+  const recvId = pathParts[1];
   const action = pathParts[2];
 
   const [user, settings] = await Promise.all([
@@ -48,58 +46,57 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       : (event.body ?? '');
     const params = Object.fromEntries(new URLSearchParams(rawBody).entries());
 
-    if (liabId && action === 'delete') {
+    if (recvId && action === 'delete') {
       const now = clock.nowIso();
-      await softDelete(auth.session.sub, liabId, auth.session.sub, now);
-      return redirect('/liabilities');
+      await softDelete(auth.session.sub, recvId, auth.session.sub, now);
+      return redirect('/receivables');
     }
 
-    if (liabId) {
-      // Update outstanding balance
+    if (recvId) {
       const outstandingAmount = parseFloat(params.outstandingAmount ?? '');
-      if (isNaN(outstandingAmount) || outstandingAmount < 0) return redirect('/liabilities?error=invalid');
+      if (isNaN(outstandingAmount) || outstandingAmount < 0) return redirect('/receivables?error=invalid');
       const now = clock.nowIso();
-      const existing = await getLiability(auth.session.sub, liabId);
-      if (!existing || existing.deletedAt) return redirect('/liabilities?error=not_found');
-      const status = calcLiabilityStatus(existing.originalAmount, outstandingAmount);
-      await updateLiability(auth.session.sub, liabId, {
+      const existing = await getReceivable(auth.session.sub, recvId);
+      if (!existing || existing.deletedAt) return redirect('/receivables?error=not_found');
+      const status = calcReceivableStatus(existing.originalAmount, outstandingAmount);
+      await updateReceivable(auth.session.sub, recvId, {
         outstandingAmount,
         status,
         updatedAt: now,
-        GSI1SK: `LIAB#${now}`,
+        GSI1SK: `RECV#${now}`,
       });
       await putSnapshot({
-        PK: `LIAB_SNAP#${liabId}`,
+        PK: `RECV_SNAP#${recvId}`,
         SK: `SNAP#${now}#${randomUUID()}`,
-        liabId,
+        recvId,
         outstandingAmount,
         status,
         recordedAt: now,
         createdAt: now,
       });
-      return redirect('/liabilities');
+      return redirect('/receivables');
     }
 
     // Create
     const name = (params.name ?? '').trim().slice(0, 100);
-    const type = LIABILITY_TYPES.includes(params.type as LiabilityType) ? (params.type as LiabilityType) : null;
+    const type = RECEIVABLE_TYPES.includes(params.type as ReceivableType) ? (params.type as ReceivableType) : null;
     const currency = (params.currency ?? '').trim().toUpperCase().slice(0, 10);
     const originalAmount = parseFloat(params.originalAmount ?? '');
     const outstandingRaw = params.outstandingAmount !== '' ? parseFloat(params.outstandingAmount ?? '') : NaN;
     const outstandingAmount = isNaN(outstandingRaw) ? originalAmount : outstandingRaw;
 
     if (!name || !type || !currency || isNaN(originalAmount) || originalAmount <= 0 || outstandingAmount < 0) {
-      return redirect('/liabilities?error=invalid');
+      return redirect('/receivables?error=invalid');
     }
 
     const now = clock.nowIso();
     const id = randomUUID();
-    const status = calcLiabilityStatus(originalAmount, outstandingAmount);
-    await putLiability({
-      PK: `LIAB#${auth.session.sub}`,
-      SK: `LIAB#${id}`,
+    const status = calcReceivableStatus(originalAmount, outstandingAmount);
+    await putReceivable({
+      PK: `RECV#${auth.session.sub}`,
+      SK: `RECV#${id}`,
       GSI1PK: `USER#${auth.session.sub}`,
-      GSI1SK: `LIAB#${now}`,
+      GSI1SK: `RECV#${now}`,
       id,
       sub: auth.session.sub,
       name,
@@ -112,15 +109,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       updatedAt: now,
     });
     await putSnapshot({
-      PK: `LIAB_SNAP#${id}`,
+      PK: `RECV_SNAP#${id}`,
       SK: `SNAP#${now}#${randomUUID()}`,
-      liabId: id,
+      recvId: id,
       outstandingAmount,
       status,
       recordedAt: now,
       createdAt: now,
     });
-    return redirect('/liabilities');
+    return redirect('/receivables');
   }
 
   // GET
@@ -128,22 +125,20 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const qs = new URLSearchParams(event.rawQueryString ?? '');
   const errorParam = qs.get('error');
   const errorBanner = errorParam
-    ? `<div style="background:var(--color-error);color:#fff;padding:0.75rem 1rem;border-radius:0.5rem;margin-bottom:1rem;font-size:0.875rem">${errorParam === 'not_found' ? 'Liability not found.' : 'Please enter valid values.'}</div>`
+    ? `<div style="background:var(--color-error);color:#fff;padding:0.75rem 1rem;border-radius:0.5rem;margin-bottom:1rem;font-size:0.875rem">${errorParam === 'not_found' ? 'Receivable not found.' : 'Please enter valid values.'}</div>`
     : '';
 
-  const liabilities = await queryByUser(auth.session.sub);
+  const receivables = await queryByUser(auth.session.sub);
 
-  // Sort: active (outstanding/partially_returned) by updatedAt desc, settled at bottom by updatedAt desc
-  const active = liabilities
-    .filter((l) => l.status !== 'settled')
+  const active = receivables
+    .filter((r) => r.status !== 'settled')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const settled = liabilities
-    .filter((l) => l.status === 'settled')
+  const settled = receivables
+    .filter((r) => r.status === 'settled')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const sorted = [...active, ...settled];
 
-  // Compute total outstanding in display currency
-  const foreignCurrencies = [...new Set(liabilities.filter((l) => l.currency !== currency).map((l) => l.currency))];
+  const foreignCurrencies = [...new Set(receivables.filter((r) => r.currency !== currency).map((r) => r.currency))];
   let rates: Record<string, number> = {};
   let ratesDate: string | undefined;
   let fxFailed = false;
@@ -155,35 +150,35 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
 
-  let liabTotal = 0;
+  let recvTotal = 0;
   let partial = false;
-  for (const l of liabilities.filter((l) => l.status !== 'settled')) {
-    if (l.currency === currency) {
-      liabTotal += l.outstandingAmount;
+  for (const r of receivables.filter((r) => r.status !== 'settled')) {
+    if (r.currency === currency) {
+      recvTotal += r.outstandingAmount;
     } else {
-      const converted = convertAmount(l.outstandingAmount, l.currency, currency, rates);
-      if (converted === null) { partial = true; } else { liabTotal += converted; }
+      const converted = convertAmount(r.outstandingAmount, r.currency, currency, rates);
+      if (converted === null) { partial = true; } else { recvTotal += converted; }
     }
   }
   const partialNote = (fxFailed || partial) ? ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>' : '';
-  const activeCount = liabilities.filter((l) => l.status !== 'settled').length;
-  const hasAnySameCurrency = liabilities.some((l) => l.status !== 'settled' && l.currency === currency);
+  const activeCount = receivables.filter((r) => r.status !== 'settled').length;
+  const hasAnySameCurrency = receivables.some((r) => r.status !== 'settled' && r.currency === currency);
   const totalDisplay = activeCount === 0
     ? '—'
-    : (fxFailed || partial) && !hasAnySameCurrency && liabTotal === 0
+    : (fxFailed || partial) && !hasAnySameCurrency && recvTotal === 0
       ? `— ${partialNote}`
-      : `${escapeHtml(currency)} ${escapeHtml(fmt(liabTotal))}${partialNote}`;
+      : `${escapeHtml(currency)} ${escapeHtml(fmt(recvTotal))}${partialNote}`;
 
-  const liabilityCards = sorted.map((l) => {
-    const isSettled = l.status === 'settled';
-    const pct = l.originalAmount > 0
-      ? Math.max(0, Math.min(100, ((l.originalAmount - Math.min(l.outstandingAmount, l.originalAmount)) / l.originalAmount) * 100))
+  const receivableCards = sorted.map((r) => {
+    const isSettled = r.status === 'settled';
+    const pct = r.originalAmount > 0
+      ? Math.max(0, Math.min(100, ((r.originalAmount - Math.min(r.outstandingAmount, r.originalAmount)) / r.originalAmount) * 100))
       : 0;
-    const isForeign = l.currency !== currency;
-    const convertedOutstanding = isForeign ? convertAmount(l.outstandingAmount, l.currency, currency, rates) : null;
-    const rate = isForeign && !fxFailed ? rates[l.currency] : undefined;
+    const isForeign = r.currency !== currency;
+    const convertedOutstanding = isForeign ? convertAmount(r.outstandingAmount, r.currency, currency, rates) : null;
+    const rate = isForeign && !fxFailed ? rates[r.currency] : undefined;
     const rateLabel = rate !== undefined
-      ? `1 ${escapeHtml(l.currency)} = ${escapeHtml((1 / rate).toLocaleString('en-SG', { minimumFractionDigits: 4, maximumFractionDigits: 4 }))} ${escapeHtml(currency)}`
+      ? `1 ${escapeHtml(r.currency)} = ${escapeHtml((1 / rate).toLocaleString('en-SG', { minimumFractionDigits: 4, maximumFractionDigits: 4 }))} ${escapeHtml(currency)}`
       : '';
     const tooltipText = ratesDate ? `Rate as of ${escapeHtml(ratesDate)}` : 'Rate unavailable';
     const rateInfo = rateLabel
@@ -198,20 +193,20 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     <div class="card" style="margin-bottom:0.75rem${isSettled ? ';opacity:0.6' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;margin-bottom:0.5rem">
         <div>
-          <div style="font-weight:600;font-size:0.95rem">${escapeHtml(l.name)}</div>
-          <div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">${escapeHtml(LIABILITY_TYPE_LABELS[l.type])}</div>
+          <div style="font-weight:600;font-size:0.95rem">${escapeHtml(r.name)}</div>
+          <div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">${escapeHtml(RECEIVABLE_TYPE_LABELS[r.type])}</div>
         </div>
-        <span style="font-size:0.7rem;font-weight:600;color:${STATUS_COLORS[l.status]};white-space:nowrap;margin-top:0.15rem">${STATUS_LABELS[l.status]}</span>
+        <span style="font-size:0.7rem;font-weight:600;color:${STATUS_COLORS[r.status]};white-space:nowrap;margin-top:0.15rem">${STATUS_LABELS[r.status]}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:${isSettled ? '0' : '0.5rem'}">
         <div>
           <div style="font-size:0.65rem;color:var(--color-text-muted)">Outstanding</div>
-          <div style="font-size:1.1rem;font-weight:700;color:var(--color-accent)">${escapeHtml(l.currency)} ${escapeHtml(fmt(l.outstandingAmount))}</div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--color-accent)">${escapeHtml(r.currency)} ${escapeHtml(fmt(r.outstandingAmount))}</div>
           ${convertedLine}
         </div>
         <div style="text-align:right">
           <div style="font-size:0.65rem;color:var(--color-text-muted)">Original</div>
-          <div style="font-size:0.85rem;color:var(--color-text-muted)">${escapeHtml(l.currency)} ${escapeHtml(fmt(l.originalAmount))}</div>
+          <div style="font-size:0.85rem;color:var(--color-text-muted)">${escapeHtml(r.currency)} ${escapeHtml(fmt(r.originalAmount))}</div>
         </div>
       </div>
       ${!isSettled ? `
@@ -220,32 +215,32 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       </div>` : ''}
       <div style="display:flex;gap:0.5rem;justify-content:flex-end">
         <button class="btn-ghost" style="font-size:0.8rem;padding:0.3rem 0.75rem"
-          onclick="openEdit('${escapeHtml(l.id)}','${escapeHtml(l.name)}',${l.outstandingAmount})">Edit</button>
+          onclick="openEdit('${escapeHtml(r.id)}','${escapeHtml(r.name)}',${r.outstandingAmount})">Edit</button>
         <button class="btn-ghost" style="font-size:0.8rem;padding:0.3rem 0.75rem;color:var(--color-error);border-color:var(--color-error)"
-          onclick="openDelete('${escapeHtml(l.id)}','${escapeHtml(l.name)}')">Delete</button>
+          onclick="openDelete('${escapeHtml(r.id)}','${escapeHtml(r.name)}')">Delete</button>
       </div>
     </div>`;
   }).join('');
 
-  const emptyState = liabilities.length === 0
-    ? `<div class="card" style="text-align:center;color:var(--color-text-muted);padding:1.5rem 1rem;margin-bottom:1rem">No liabilities yet. Tap <strong>Add</strong> to track a loan or debt.</div>`
+  const emptyState = receivables.length === 0
+    ? `<div class="card" style="text-align:center;color:var(--color-text-muted);padding:1.5rem 1rem;margin-bottom:1rem">No receivables yet. Tap <strong>Add</strong> to track money owed to you.</div>`
     : '';
 
-  const typeOptions = LIABILITY_TYPES.map((t) => `<option value="${t}">${LIABILITY_TYPE_LABELS[t]}</option>`).join('');
+  const typeOptions = RECEIVABLE_TYPES.map((t) => `<option value="${t}">${RECEIVABLE_TYPE_LABELS[t]}</option>`).join('');
   const currencyOptions = CURRENCIES.map((c) => `<option value="${c}"${c === currency ? ' selected' : ''}>${c}</option>`).join('');
 
   const addPanel = `
     <div class="panel-overlay" id="add-overlay" onclick="document.getElementById('add-overlay').classList.remove('open')">
       <div class="panel-sheet" onclick="event.stopPropagation()">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
-          <div style="font-weight:600;font-size:1rem">Add Liability</div>
+          <div style="font-weight:600;font-size:1rem">Add Receivable</div>
           <button type="button" onclick="document.getElementById('add-overlay').classList.remove('open')"
             style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
         </div>
-        <form method="POST" action="/liabilities">
+        <form method="POST" action="/receivables">
           <div class="form-group">
             <label>Name</label>
-            <input name="name" type="text" required maxlength="100" placeholder="e.g. Home Loan">
+            <input name="name" type="text" required maxlength="100" placeholder="e.g. Loan to Alice">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
             <div class="form-group">
@@ -276,7 +271,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     <div class="panel-overlay" id="edit-overlay" onclick="document.getElementById('edit-overlay').classList.remove('open')">
       <div class="panel-sheet" onclick="event.stopPropagation()">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
-          <div style="font-weight:600;font-size:1rem" id="edit-title">Update Balance</div>
+          <div style="font-weight:600;font-size:1rem" id="edit-title">Update Outstanding</div>
           <button type="button" onclick="document.getElementById('edit-overlay').classList.remove('open')"
             style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
         </div>
@@ -294,7 +289,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const deletePanel = `
     <div class="panel-overlay" id="delete-overlay" onclick="document.getElementById('delete-overlay').classList.remove('open')">
       <div class="panel-sheet" onclick="event.stopPropagation()">
-        <div style="font-weight:600;font-size:1rem;margin-bottom:0.5rem">Delete liability?</div>
+        <div style="font-weight:600;font-size:1rem;margin-bottom:0.5rem">Delete receivable?</div>
         <div style="font-size:0.875rem;color:var(--color-text-muted);margin-bottom:1.25rem" id="delete-name"></div>
         <form method="POST" id="delete-form">
           <div style="display:flex;gap:0.75rem">
@@ -309,17 +304,17 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const body = `
     <div style="max-width:640px;margin:0 auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
-        <h2 style="font-size:1.3rem">Liabilities</h2>
+        <h2 style="font-size:1.3rem">Receivables</h2>
         <button type="button" class="btn-primary" style="padding:0.45rem 1rem;font-size:0.875rem"
           onclick="document.getElementById('add-overlay').classList.add('open')">Add</button>
       </div>
       ${errorBanner}
       <div class="card" style="margin-bottom:1.25rem">
         <div style="font-size:0.75rem;color:var(--color-text-muted);margin-bottom:0.25rem">Total Outstanding (active)</div>
-        <div style="font-size:1.75rem;font-weight:700;color:var(--color-error)">${totalDisplay}</div>
+        <div style="font-size:1.75rem;font-weight:700;color:var(--color-accent)">${totalDisplay}</div>
       </div>
       ${emptyState}
-      ${liabilityCards}
+      ${receivableCards}
     </div>
     ${addPanel}
     ${editPanel}
@@ -327,13 +322,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     <script>
       function openEdit(id, name, outstanding) {
         document.getElementById('edit-title').textContent = 'Update — ' + name;
-        document.getElementById('edit-form').action = '/liabilities/' + id;
+        document.getElementById('edit-form').action = '/receivables/' + id;
         document.getElementById('edit-outstanding').value = outstanding;
         document.getElementById('edit-overlay').classList.add('open');
       }
       function openDelete(id, name) {
         document.getElementById('delete-name').textContent = name;
-        document.getElementById('delete-form').action = '/liabilities/' + id + '/delete';
+        document.getElementById('delete-form').action = '/receivables/' + id + '/delete';
         document.getElementById('delete-overlay').classList.add('open');
       }
       document.querySelectorAll('.fx-tip').forEach(function(tip){
@@ -349,9 +344,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     statusCode: 200,
     headers: { 'Content-Type': 'text/html' },
     body: renderPage({
-      title: 'Liabilities — kopi-wealth',
+      title: 'Receivables — kopi-wealth',
       body,
-      page: 'liabilities',
+      page: 'receivables',
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,

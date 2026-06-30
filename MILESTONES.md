@@ -76,7 +76,7 @@ Add/update outstanding balance/delete loans, mortgages, credit cards. Liability 
 
 ---
 
-## M11 — Receivables ⬜
+## M11 — Receivables ✅
 
 Add/update outstanding/delete receivables (money owed to you). Receivable snapshots. Auto-status. Filter by status.
 

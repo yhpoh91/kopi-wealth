@@ -10,6 +10,7 @@ vi.mock('../../src/repositories/account', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/investment', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/cpf', () => ({ getCpf: vi.fn() }));
 vi.mock('../../src/repositories/liability', () => ({ queryByUser: vi.fn() }));
+vi.mock('../../src/repositories/receivable', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/lib/clock', () => ({
   clock: { nowIso: vi.fn(() => '2026-06-29T00:00:00.000Z'), today: vi.fn(() => '2026-06-29') },
 }));
@@ -26,6 +27,7 @@ import { queryByUser } from '../../src/repositories/account';
 import { queryByUser as queryInvestments } from '../../src/repositories/investment';
 import { getCpf } from '../../src/repositories/cpf';
 import { queryByUser as queryLiabilities } from '../../src/repositories/liability';
+import { queryByUser as queryReceivables } from '../../src/repositories/receivable';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 
 const mockRequireSession = vi.mocked(requireSession);
@@ -36,6 +38,7 @@ const mockQueryByUser = vi.mocked(queryByUser);
 const mockQueryInvestments = vi.mocked(queryInvestments);
 const mockGetCpf = vi.mocked(getCpf);
 const mockQueryLiabilities = vi.mocked(queryLiabilities);
+const mockQueryReceivables = vi.mocked(queryReceivables);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
 
@@ -55,6 +58,7 @@ beforeEach(() => {
   mockQueryInvestments.mockResolvedValue([]);
   mockGetCpf.mockResolvedValue(null);
   mockQueryLiabilities.mockResolvedValue([]);
+  mockQueryReceivables.mockResolvedValue([]);
   mockGetOrFetchRates.mockResolvedValue({ rates: { MYR: 3.45 }, date: '2026-06-28' });
   mockConvertAmount.mockImplementation((amount, from, to, rates) => {
     if (from === to) return amount;
@@ -263,6 +267,37 @@ describe('GET /', () => {
   it('shows partial note on liabilities when FX unavailable', async () => {
     const usdLiab = { PK: 'LIAB#sub1', SK: 'LIAB#id1', GSI1PK: 'USER#sub1', GSI1SK: 'LIAB#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan', type: 'personal_loan' as const, currency: 'USD', originalAmount: 10000, outstandingAmount: 8000, status: 'outstanding' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
     mockQueryLiabilities.mockResolvedValue([usdLiab]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-29' });
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('partial');
+  });
+
+  it('shows — for receivables when none exist', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Receivables');
+  });
+
+  it('shows total outstanding receivables (active only)', async () => {
+    const recv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan to Bob', type: 'personal_loan' as const, currency: 'SGD', originalAmount: 10000, outstandingAmount: 8000, status: 'partially_received' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
+    const settledRecv = { ...recv, id: 'id2', outstandingAmount: 0, status: 'settled' as const };
+    mockQueryReceivables.mockResolvedValue([recv, settledRecv]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('8,000.00');
+  });
+
+  it('includes receivables in net worth calculation', async () => {
+    const recv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan to Bob', type: 'personal_loan' as const, currency: 'SGD', originalAmount: 10000, outstandingAmount: 8000, status: 'partially_received' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
+    mockQueryByUser.mockResolvedValue([sgdAccount]); // 10000
+    mockQueryReceivables.mockResolvedValue([recv]); // +8000
+    // net worth = 10000 + 8000 = 18000
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('18,000.00');
+  });
+
+  it('shows partial note on receivables when FX unavailable', async () => {
+    const usdRecv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan to Bob', type: 'personal_loan' as const, currency: 'USD', originalAmount: 10000, outstandingAmount: 8000, status: 'outstanding' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
+    mockQueryReceivables.mockResolvedValue([usdRecv]);
     mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-06-29' });
     mockConvertAmount.mockReturnValue(null);
     const res = await handler({} as never, {} as never, () => {});

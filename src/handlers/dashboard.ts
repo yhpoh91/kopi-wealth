@@ -7,6 +7,7 @@ import { queryByUser } from '../repositories/account';
 import { queryByUser as queryInvestments } from '../repositories/investment';
 import { getCpf } from '../repositories/cpf';
 import { queryByUser as queryLiabilities } from '../repositories/liability';
+import { queryByUser as queryReceivables } from '../repositories/receivable';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
@@ -36,11 +37,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? 'there';
   const currency = settings?.currency ?? 'SGD';
 
-  const [accounts, investments, cpf, liabilities] = await Promise.all([
+  const [accounts, investments, cpf, liabilities, receivables] = await Promise.all([
     queryByUser(auth.session.sub),
     queryInvestments(auth.session.sub),
     getCpf(auth.session.sub),
     queryLiabilities(auth.session.sub),
+    queryReceivables(auth.session.sub),
   ]);
   let savingsDisplay = '—';
   let savingsNote = '';
@@ -148,16 +150,37 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     ? fmt(liabTotal) + (liabPartial || fxFailed ? ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>' : '')
     : null;
 
-  // Net worth = savings + investments + cpf − liabilities (null if any component with data can't be converted)
+  // Receivables total in display currency (active only)
+  let recvTotal = 0;
+  let recvPartial = false;
+  for (const r of receivables.filter((r) => r.status !== 'settled')) {
+    if (r.currency === currency) {
+      recvTotal += r.outstandingAmount;
+    } else {
+      const converted = convertAmount(r.outstandingAmount, r.currency, currency, rates);
+      if (converted !== null && !fxFailed) {
+        recvTotal += converted;
+      } else {
+        recvPartial = true;
+      }
+    }
+  }
+  const recvDisplay = receivables.filter((r) => r.status !== 'settled').length > 0
+    ? fmt(recvTotal) + (recvPartial || fxFailed ? ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>' : '')
+    : null;
+
+  // Net worth = savings + investments + cpf + receivables − liabilities
   const hasSavingsData = accounts.length > 0;
   const hasInvestData = investments.length > 0;
   const hasCpfData = cpf !== null;
   const hasLiabData = liabilities.filter((l) => l.status !== 'settled').length > 0;
+  const hasRecvData = receivables.filter((r) => r.status !== 'settled').length > 0;
   const savingsOk = !hasSavingsData || (!fxFailed && savingsDisplay !== '—');
   const investOk = !hasInvestData || (!fxFailed && investDisplay !== '—');
   const liabOk = !hasLiabData || (!liabPartial && !fxFailed);
-  const hasAnyData = hasSavingsData || hasInvestData || hasCpfData || hasLiabData;
-  const netWorthKnown = hasAnyData && savingsOk && investOk && liabOk;
+  const recvOk = !hasRecvData || (!recvPartial && !fxFailed);
+  const hasAnyData = hasSavingsData || hasInvestData || hasCpfData || hasLiabData || hasRecvData;
+  const netWorthKnown = hasAnyData && savingsOk && investOk && liabOk && recvOk;
 
   let savingsNum = 0;
   if (hasSavingsData && savingsOk) {
@@ -189,13 +212,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
 
-  const netWorth = netWorthKnown ? savingsNum + investNum + cpfNum - liabTotal : null;
+  const netWorth = netWorthKnown ? savingsNum + investNum + cpfNum + recvTotal - liabTotal : null;
   const netWorthColor = netWorth !== null && netWorth < 0 ? 'var(--color-error)' : 'var(--color-accent)';
   const netWorthDisplay = netWorth !== null
     ? `${escapeHtml(currency)} ${escapeHtml(fmt(netWorth))}`
     : `${escapeHtml(currency)} —`;
   const netWorthSubtext = !hasAnyData
-    ? 'Add accounts, investments or liabilities to see net worth'
+    ? 'Add accounts, investments, liabilities or receivables to see net worth'
     : netWorth === null
       ? 'Some currencies could not be converted'
       : `As of ${escapeHtml(clock.today())}`;
@@ -228,6 +251,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         <div class="card">
           <div style="font-size:0.75rem;color:var(--color-text-muted)">Liabilities</div>
           <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem;color:${liabDisplay ? 'var(--color-error)' : 'inherit'}">${liabDisplay ? escapeHtml(currency) + ' ' + liabDisplay : '—'}</div>
+        </div>
+        <div class="card">
+          <div style="font-size:0.75rem;color:var(--color-text-muted)">Receivables</div>
+          <div style="font-size:1.2rem;font-weight:600;margin-top:0.25rem">${recvDisplay ? escapeHtml(currency) + ' ' + recvDisplay : '—'}</div>
         </div>
       </div>
 
