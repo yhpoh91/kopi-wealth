@@ -165,9 +165,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
   const partialNote = (fxFailed || partial) ? ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>' : '';
-  const totalDisplay = liabilities.length === 0
+  const activeCount = liabilities.filter((l) => l.status !== 'settled').length;
+  const hasAnySameCurrency = liabilities.some((l) => l.status !== 'settled' && l.currency === currency);
+  const totalDisplay = activeCount === 0
     ? '—'
-    : `${escapeHtml(currency)} ${escapeHtml(fmt(liabTotal))}${partialNote}`;
+    : (fxFailed || partial) && !hasAnySameCurrency && liabTotal === 0
+      ? `— ${partialNote}`
+      : `${escapeHtml(currency)} ${escapeHtml(fmt(liabTotal))}${partialNote}`;
 
   const liabilityCards = sorted.map((l) => {
     const isSettled = l.status === 'settled';

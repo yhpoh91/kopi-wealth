@@ -134,11 +134,22 @@ describe('GET /liabilities', () => {
     expect(mockGetOrFetchRates).toHaveBeenCalledWith('SGD');
   });
 
-  it('shows partial note when FX conversion unavailable', async () => {
+  it('shows — when all active liabilities are foreign and FX unavailable', async () => {
     const usdLiab = { ...liab, currency: 'USD' };
     mockQueryByUser.mockResolvedValue([usdLiab]);
     mockConvertAmount.mockReturnValue(null);
     const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('SGD 0.00');
+    expect(res.body).toContain('partial');
+  });
+
+  it('shows partial total when some same-currency and some unconverted', async () => {
+    const usdLiab = { ...liab, id: 'id3', SK: 'LIAB#id3', currency: 'USD' };
+    const sgdLiab = { ...liab, outstandingAmount: 300000 };
+    mockQueryByUser.mockResolvedValue([sgdLiab, usdLiab]);
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).toContain('SGD 300,000.00');
     expect(res.body).toContain('partial');
   });
 

@@ -160,9 +160,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
   const partialNote = (fxFailed || partial) ? ' <span style="font-size:0.7rem;color:var(--color-text-muted)">(partial)</span>' : '';
-  const totalDisplay = receivables.length === 0
+  const activeCount = receivables.filter((r) => r.status !== 'settled').length;
+  const hasAnySameCurrency = receivables.some((r) => r.status !== 'settled' && r.currency === currency);
+  const totalDisplay = activeCount === 0
     ? '—'
-    : `${escapeHtml(currency)} ${escapeHtml(fmt(recvTotal))}${partialNote}`;
+    : (fxFailed || partial) && !hasAnySameCurrency && recvTotal === 0
+      ? `— ${partialNote}`
+      : `${escapeHtml(currency)} ${escapeHtml(fmt(recvTotal))}${partialNote}`;
 
   const receivableCards = sorted.map((r) => {
     const isSettled = r.status === 'settled';

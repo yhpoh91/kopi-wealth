@@ -134,11 +134,22 @@ describe('GET /receivables', () => {
     expect(mockGetOrFetchRates).toHaveBeenCalledWith('SGD');
   });
 
-  it('shows partial note when FX conversion unavailable', async () => {
+  it('shows — when all active receivables are foreign and FX unavailable', async () => {
     const usdRecv = { ...recv, currency: 'USD' };
     mockQueryByUser.mockResolvedValue([usdRecv]);
     mockConvertAmount.mockReturnValue(null);
     const res = await handler(makeEvent('GET', '/receivables'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('SGD 0.00');
+    expect(res.body).toContain('partial');
+  });
+
+  it('shows partial total when some same-currency and some unconverted', async () => {
+    const usdRecv = { ...recv, id: 'id3', SK: 'RECV#id3', currency: 'USD' };
+    const sgdRecv = { ...recv, outstandingAmount: 5000 };
+    mockQueryByUser.mockResolvedValue([sgdRecv, usdRecv]);
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/receivables'), {} as never, () => {}) as never;
+    expect(res.body).toContain('SGD 5,000.00');
     expect(res.body).toContain('partial');
   });
 
