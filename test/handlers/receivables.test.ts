@@ -326,3 +326,28 @@ describe('POST /receivables/:id/delete', () => {
     expect(mockSoftDelete).toHaveBeenCalledWith('sub1', 'id1', 'sub1', '2026-06-29T10:00:00.000Z');
   });
 });
+
+describe('GET /receivables — per-card converted amount', () => {
+  it('shows ≈ base currency amount when receivable is foreign currency and rate available', async () => {
+    const foreignRecv = { ...recv, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignRecv]);
+    mockConvertAmount.mockImplementation((amount, from) => from === 'USD' ? amount * 1.35 : null);
+    const res = await handler(makeEvent('GET', '/receivables'), {} as never, () => {}) as never;
+    expect(res.body).toContain('≈ SGD');
+    expect(res.body).toContain('1,350.00');
+  });
+
+  it('does not show ≈ line when receivable is base currency', async () => {
+    mockQueryByUser.mockResolvedValue([recv]);
+    const res = await handler(makeEvent('GET', '/receivables'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('≈ SGD');
+  });
+
+  it('does not show ≈ line when foreign rate is unavailable', async () => {
+    const foreignRecv = { ...recv, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignRecv]);
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/receivables'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('≈ SGD');
+  });
+});

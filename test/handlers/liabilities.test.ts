@@ -334,3 +334,28 @@ describe('POST /liabilities/:id/delete', () => {
     expect(mockSoftDelete).toHaveBeenCalledWith('sub1', 'id1', 'sub1', '2026-06-29T10:00:00.000Z');
   });
 });
+
+describe('GET /liabilities — per-card converted amount', () => {
+  it('shows ≈ base currency amount when liability is foreign currency and rate available', async () => {
+    const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignLiab]);
+    mockConvertAmount.mockImplementation((amount, from) => from === 'USD' ? amount * 1.35 : null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).toContain('≈ SGD');
+    expect(res.body).toContain('1,350.00');
+  });
+
+  it('does not show ≈ line when liability is base currency', async () => {
+    mockQueryByUser.mockResolvedValue([liab]);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('≈ SGD');
+  });
+
+  it('does not show ≈ line when foreign rate is unavailable', async () => {
+    const foreignLiab = { ...liab, currency: 'USD', outstandingAmount: 1000 };
+    mockQueryByUser.mockResolvedValue([foreignLiab]);
+    mockConvertAmount.mockReturnValue(null);
+    const res = await handler(makeEvent('GET', '/liabilities'), {} as never, () => {}) as never;
+    expect(res.body).not.toContain('≈ SGD');
+  });
+});

@@ -178,6 +178,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const pct = l.originalAmount > 0
       ? Math.max(0, Math.min(100, ((l.originalAmount - Math.min(l.outstandingAmount, l.originalAmount)) / l.originalAmount) * 100))
       : 0;
+    const convertedOutstanding = l.currency !== currency ? convertAmount(l.outstandingAmount, l.currency, currency, rates) : null;
+    const convertedLine = convertedOutstanding !== null
+      ? `<div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">≈ ${escapeHtml(currency)} ${escapeHtml(fmt(convertedOutstanding))}</div>`
+      : '';
     return `
     <div class="card" style="margin-bottom:0.75rem${isSettled ? ';opacity:0.6' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;margin-bottom:0.5rem">
@@ -191,6 +195,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         <div>
           <div style="font-size:0.65rem;color:var(--color-text-muted)">Outstanding</div>
           <div style="font-size:1.1rem;font-weight:700;color:var(--color-accent)">${escapeHtml(l.currency)} ${escapeHtml(fmt(l.outstandingAmount))}</div>
+          ${convertedLine}
         </div>
         <div style="text-align:right">
           <div style="font-size:0.65rem;color:var(--color-text-muted)">Original</div>
