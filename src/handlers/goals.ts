@@ -283,7 +283,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     : '';
 
   const tracksDescriptions = Object.fromEntries(TRACKS_AGAINST_OPTIONS.map((o) => [o.value, o.description]));
-  const tracksDescJson = escapeHtml(JSON.stringify(tracksDescriptions));
+  const tracksDescJson = JSON.stringify(tracksDescriptions);
 
   const typeOptions = GOAL_TYPES.map((t) => `<option value="${t}">${GOAL_TYPE_LABELS[t]}</option>`).join('');
   const tracksOptions = TRACKS_AGAINST_OPTIONS.map((o) =>
