@@ -296,18 +296,25 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const tracksLabel = TRACKS_AGAINST_OPTIONS.find((o) => o.value === g.tracksAgainst)!.label;
     const isActive = g.status === 'active';
 
-    const progressBar = progress !== null && isActive && g.targetAmount > 0 ? `
+    const achievedBanner = g.status === 'achieved' ? `
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-top:0.5rem;padding:0.5rem 0.75rem;background:rgba(76,175,80,0.12);border:1px solid rgba(76,175,80,0.35);border-radius:0.5rem">
+        <span style="font-size:1rem">🏆</span>
+        <span style="font-size:0.8rem;font-weight:600;color:#4caf50">Goal achieved!</span>
+        ${g.targetAmount > 0 ? `<span style="font-size:0.75rem;color:var(--color-text-muted);margin-left:auto">${escapeHtml(currency)} ${escapeHtml(fmt(g.targetAmount))}</span>` : ''}
+      </div>` : '';
+
+    const progressBar = g.status !== 'achieved' && progress !== null && isActive && g.targetAmount > 0 ? `
       <div style="background:var(--color-border);border-radius:999px;height:4px;overflow:hidden;margin:0.5rem 0">
         <div style="background:var(--color-accent);height:100%;width:${escapeHtml(progress.toFixed(1))}%;border-radius:999px"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--color-text-muted)">
         <span>${escapeHtml(currency)} ${escapeHtml(fmt(currentValue!))}</span>
         <span>${escapeHtml(progress.toFixed(1))}% of ${escapeHtml(currency)} ${escapeHtml(fmt(g.targetAmount))}</span>
-      </div>` : g.targetAmount > 0 ? `
+      </div>` : g.status !== 'achieved' && g.targetAmount > 0 ? `
       <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.35rem">
         Target: ${escapeHtml(currency)} ${escapeHtml(fmt(g.targetAmount))}
-      </div>` : `
-      <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.35rem">No target set</div>`;
+      </div>` : g.status !== 'achieved' ? `
+      <div style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.35rem">No target set</div>` : '';
 
     const editTracksOptions = TRACKS_AGAINST_OPTIONS.map((o) =>
       `<option value="${o.value}"${o.value === g.tracksAgainst ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
@@ -317,14 +324,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     ).join('');
 
     return `
-    <div class="card" style="margin-bottom:0.75rem${g.status !== 'active' ? ';opacity:0.6' : ''}">
+    <div class="card" style="margin-bottom:0.75rem${g.status === 'paused' ? ';opacity:0.6' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;margin-bottom:0.25rem">
         <div style="min-width:0;flex:1">
           <div style="font-weight:600;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(g.name)}</div>
           <div style="font-size:0.7rem;color:var(--color-text-muted);margin-top:0.1rem">${escapeHtml(GOAL_TYPE_LABELS[g.type])} · ${escapeHtml(tracksLabel)}</div>
         </div>
-        <span style="font-size:0.7rem;font-weight:600;color:${STATUS_COLORS[g.status]};white-space:nowrap;margin-top:0.15rem">${escapeHtml(g.status.charAt(0).toUpperCase() + g.status.slice(1))}</span>
+        ${g.status !== 'achieved' ? `<span style="font-size:0.7rem;font-weight:600;color:${STATUS_COLORS[g.status]};white-space:nowrap;margin-top:0.15rem">${escapeHtml(g.status.charAt(0).toUpperCase() + g.status.slice(1))}</span>` : ''}
       </div>
+      ${achievedBanner}
       ${progressBar}
       <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem">
         <button class="btn-ghost" style="font-size:0.8rem;padding:0.3rem 0.75rem"

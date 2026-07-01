@@ -171,11 +171,12 @@ describe('GET /goals', () => {
     expect(res.body).toContain('Total assets');
   });
 
-  it('shows achieved goal with reduced opacity', async () => {
+  it('shows achieved goal with trophy banner, no opacity dim', async () => {
     mockQueryByUser.mockResolvedValue([{ ...goal, status: 'achieved' }]);
     const res = await handler(makeEvent('GET', '/goals'), {} as never, () => {}) as never;
-    expect(res.body).toContain('opacity:0.6');
-    expect(res.body).toContain('Achieved');
+    expect(res.body).toContain('Goal achieved!');
+    expect(res.body).toContain('🏆');
+    expect(res.body).not.toContain('opacity:0.6');
   });
 });
 
