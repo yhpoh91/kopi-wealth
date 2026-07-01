@@ -120,12 +120,12 @@ describe('GET /', () => {
     expect(mockPutSettings).not.toHaveBeenCalled();
   });
 
-  it('shows — for savings when no accounts', async () => {
+  it('shows — when no data', async () => {
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('>—<');
   });
 
-  it('shows savings total for same-currency accounts', async () => {
+  it('shows savings total within Total Funds for same-currency accounts', async () => {
     mockQueryByUser.mockResolvedValue([sgdAccount]);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('10,000.00');
@@ -179,18 +179,16 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('&lt;script&gt;');
   });
 
-  it('shows CPF total in SGD when base currency is SGD', async () => {
+  it('shows CPF total in Total Assets when base currency is SGD', async () => {
     const cpfRecord = { PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 10000, sa: 20000, ma: 5000, ra: 0, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     mockGetCpf.mockResolvedValue(cpfRecord);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('35,000.00');
   });
 
-  it('shows — for CPF when no CPF data', async () => {
+  it('shows Total Assets label when no CPF data', async () => {
     const res = await handler({} as never, {} as never, () => {});
-    const body = (res as { body: string }).body;
-    // CPF card shows — when no data
-    expect(body).toContain('CPF');
+    expect((res as { body: string }).body).toContain('Total Assets');
   });
 
   it('converts CPF total to base currency when not SGD', async () => {
@@ -203,21 +201,21 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('120,750.00');
   });
 
-  it('shows SGD note on CPF when FX fails and base is not SGD', async () => {
+  it('shows (SGD) note on CPF when FX fails and base is not SGD', async () => {
     const cpfRecord = { PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 10000, sa: 20000, ma: 5000, ra: 0, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     mockGetSettings.mockResolvedValue({ ...settings, currency: 'MYR' });
     mockGetCpf.mockResolvedValue(cpfRecord);
     mockGetOrFetchRates.mockRejectedValue(new Error('fail'));
     const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('(SGD)');
+    expect((res as { body: string }).body).toContain('partial');
   });
 
-  it('shows — for investments when none exist', async () => {
+  it('shows Total Funds label', async () => {
     const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Investments');
+    expect((res as { body: string }).body).toContain('Total Funds');
   });
 
-  it('shows investments total for same-currency investments', async () => {
+  it('shows investments total within Total Funds', async () => {
     const inv = { PK: 'INVEST#sub1', SK: 'INVEST#id1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#2024-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'IWDA', type: 'etf' as const, currency: 'SGD', value: 15000, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     mockQueryInvestments.mockResolvedValue([inv]);
     const res = await handler({} as never, {} as never, () => {});
@@ -240,9 +238,9 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('partial');
   });
 
-  it('shows — for liabilities when none exist', async () => {
+  it('shows Total Liabilities label', async () => {
     const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Liabilities');
+    expect((res as { body: string }).body).toContain('Total Liabilities');
   });
 
   it('shows total outstanding liabilities (active only)', async () => {
@@ -262,7 +260,7 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('-390,000.00');
   });
 
-  it('shows — for net worth when no data', async () => {
+  it('shows Net Worth label', async () => {
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('Net Worth');
   });
@@ -276,12 +274,12 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('partial');
   });
 
-  it('shows — for receivables when none exist', async () => {
+  it('shows Available Funds label', async () => {
     const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Receivables');
+    expect((res as { body: string }).body).toContain('Available Funds');
   });
 
-  it('shows total outstanding receivables (active only)', async () => {
+  it('shows total outstanding receivables in Current Assets', async () => {
     const recv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan to Bob', type: 'personal_loan' as const, currency: 'SGD', originalAmount: 10000, outstandingAmount: 8000, status: 'partially_received' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
     const settledRecv = { ...recv, id: 'id2', outstandingAmount: 0, status: 'settled' as const };
     mockQueryReceivables.mockResolvedValue([recv, settledRecv]);
@@ -331,6 +329,36 @@ describe('GET /', () => {
     mockQueryInvestments.mockResolvedValue([invest]);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('60,000.00');
+  });
+
+  it('shows Total Assets summing savings + investments + CPF + receivables', async () => {
+    const cpfRecord = { PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 5000, sa: 0, ma: 0, ra: 0, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+    const recv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Bob', type: 'personal_loan' as const, currency: 'SGD', originalAmount: 2000, outstandingAmount: 2000, status: 'outstanding' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
+    mockQueryByUser.mockResolvedValue([sgdAccount]); // 10000
+    mockGetCpf.mockResolvedValue(cpfRecord); // 5000
+    mockQueryReceivables.mockResolvedValue([recv]); // 2000
+    // Total Assets = 10000 + 0 + 5000 + 2000 = 17000
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('17,000.00');
+  });
+
+  it('shows Current Assets excluding CPF', async () => {
+    const cpfRecord = { PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 5000, sa: 0, ma: 0, ra: 0, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
+    mockQueryByUser.mockResolvedValue([sgdAccount]); // 10000
+    mockGetCpf.mockResolvedValue(cpfRecord); // 5000 (excluded from current assets)
+    // Current Assets = 10000 (no investments, no receivables)
+    // Total Assets = 10000 + 5000 = 15000
+    const res = await handler({} as never, {} as never, () => {});
+    const body = (res as { body: string }).body;
+    expect(body).toContain('15,000.00'); // Total Assets
+    expect(body).toContain('10,000.00'); // Current Assets (and Total Funds)
+  });
+
+  it('shows — for Available Funds when no accounts or investments', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Available Funds');
+    // With no accounts/investments, value shows —
+    expect((res as { body: string }).body).toContain('>—<');
   });
 });
 

@@ -88,9 +88,15 @@ Expense categories (13 types, lean/fat budgets). Monthly expense logging (upsert
 
 ---
 
-## M13 — Goals ⬜
+## M13 — Goals ✅
 
 FIRE goals (Lean/Full), property goal, custom goals. Goal progress tracking. TracksAgainst live metrics. Default goals seeded at first login. Dashboard: top 4 active goals.
+
+---
+
+## M13.5 — Dashboard Metrics ✅
+
+Redesigned dashboard to prominently display 6 financial metrics. Hero card: Net Worth. 2-column grid: Total Assets (accounts + investments + CPF + receivables), Current Assets (accounts + investments + receivables), Total Liabilities, Total Funds (accounts + investments), Available Funds (accounts + investments − reserved funds). Partial FX indicators on each card. Mobile-first responsive grid.
 
 ---
 
