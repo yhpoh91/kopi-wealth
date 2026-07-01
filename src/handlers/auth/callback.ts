@@ -4,6 +4,8 @@ import { exchangeCode, verifyIdToken } from '../../lib/auth';
 import { parseCookies, setCookieHeader, clearCookieHeader } from '../../lib/session';
 import { getUser, putUser } from '../../repositories/user';
 import { putSession } from '../../repositories/session';
+import { queryByUser as queryGoals } from '../../repositories/goal';
+import { seedDefaultGoals } from '../goals';
 import { getSecret } from '../../lib/secrets';
 import { config, secretName } from '../../config';
 import { clock } from '../../lib/clock';
@@ -54,6 +56,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const now = clock.nowIso();
 
   let user = await getUser(claims.sub);
+  const isNewUser = !user;
   if (!user) {
     user = {
       PK: `USER#${claims.sub}`,
@@ -73,6 +76,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     if (claims.name !== undefined) user = { ...user, name: claims.name };
   }
   await putUser(user);
+
+  if (isNewUser) {
+    await seedDefaultGoals(claims.sub, now);
+  } else {
+    const existingGoals = await queryGoals(claims.sub);
+    if (existingGoals.length === 0) {
+      await seedDefaultGoals(claims.sub, now);
+    }
+  }
 
   const sessionId = randomUUID();
   const ttl = Math.floor(clock.nowMs() / 1000) + 86400;

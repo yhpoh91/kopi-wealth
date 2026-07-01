@@ -14,6 +14,11 @@ vi.mock('../../../src/repositories/session', () => ({
   putSession: vi.fn(),
 }));
 
+vi.mock('../../../src/repositories/goal', () => ({
+  queryByUser: vi.fn().mockResolvedValue([]),
+  putGoal: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../../src/lib/secrets', () => ({
   getSecret: vi.fn().mockResolvedValue('client-secret'),
 }));

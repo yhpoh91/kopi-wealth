@@ -208,6 +208,23 @@ functions:
           method: POST
           path: /receivables/{id}/delete
 
+  goals:
+    handler: src/handlers/goals.handler
+    name: wealth-${self:provider.stage}-goals
+    events:
+      - httpApi:
+          method: GET
+          path: /goals
+      - httpApi:
+          method: POST
+          path: /goals
+      - httpApi:
+          method: POST
+          path: /goals/{id}
+      - httpApi:
+          method: POST
+          path: /goals/{id}/delete
+
   settings:
     handler: src/handlers/settings.handler
     name: wealth-${self:provider.stage}-settings

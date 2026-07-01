@@ -11,6 +11,7 @@ vi.mock('../../src/repositories/investment', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/cpf', () => ({ getCpf: vi.fn() }));
 vi.mock('../../src/repositories/liability', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/receivable', () => ({ queryByUser: vi.fn() }));
+vi.mock('../../src/repositories/goal', () => ({ queryByUser: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../src/lib/clock', () => ({
   clock: { nowIso: vi.fn(() => '2026-06-29T00:00:00.000Z'), today: vi.fn(() => '2026-06-29') },
 }));
@@ -28,6 +29,7 @@ import { queryByUser as queryInvestments } from '../../src/repositories/investme
 import { getCpf } from '../../src/repositories/cpf';
 import { queryByUser as queryLiabilities } from '../../src/repositories/liability';
 import { queryByUser as queryReceivables } from '../../src/repositories/receivable';
+import { queryByUser as queryGoals } from '../../src/repositories/goal';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 
 const mockRequireSession = vi.mocked(requireSession);
@@ -39,6 +41,7 @@ const mockQueryInvestments = vi.mocked(queryInvestments);
 const mockGetCpf = vi.mocked(getCpf);
 const mockQueryLiabilities = vi.mocked(queryLiabilities);
 const mockQueryReceivables = vi.mocked(queryReceivables);
+const mockQueryGoals = vi.mocked(queryGoals);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
 
@@ -302,5 +305,63 @@ describe('GET /', () => {
     mockConvertAmount.mockReturnValue(null);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('partial');
+  });
+
+  it('converts foreign currency liabilities when FX available', async () => {
+    const usdLiab = { PK: 'LIAB#sub1', SK: 'LIAB#id1', GSI1PK: 'USER#sub1', GSI1SK: 'LIAB#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan', type: 'personal_loan' as const, currency: 'USD', originalAmount: 10000, outstandingAmount: 5000, status: 'outstanding' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
+    mockQueryLiabilities.mockResolvedValue([usdLiab]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '2026-06-29' });
+    mockConvertAmount.mockReturnValue(6757);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('6,757.00');
+  });
+
+  it('converts foreign currency receivables when FX available', async () => {
+    const usdRecv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan to Bob', type: 'personal_loan' as const, currency: 'USD', originalAmount: 10000, outstandingAmount: 4000, status: 'outstanding' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
+    mockQueryReceivables.mockResolvedValue([usdRecv]);
+    mockGetOrFetchRates.mockResolvedValue({ rates: { USD: 0.74 }, date: '2026-06-29' });
+    mockConvertAmount.mockReturnValue(5405);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('5,405.00');
+  });
+
+  it('computes available funds when savings and investments both exist', async () => {
+    const invest = { PK: 'INVEST#sub1', SK: 'INVEST#i1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#', id: 'i1', sub: 'sub1', name: 'Stocks', type: 'stocks' as const, currency: 'SGD', value: 50000, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+    mockQueryByUser.mockResolvedValue([sgdAccount]);
+    mockQueryInvestments.mockResolvedValue([invest]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('60,000.00');
+  });
+});
+
+describe('GET /dashboard — goals section', () => {
+  const sgdAccount = { PK: 'ACCOUNT#sub1', SK: 'ACCOUNT#a1', GSI1PK: 'USER#sub1', GSI1SK: 'ACCOUNT#2026-01-01T00:00:00.000Z', id: 'a1', sub: 'sub1', name: 'POSB', type: 'savings' as const, currency: 'SGD', balance: 100000, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+  const activeGoal = { PK: 'GOAL#sub1', SK: 'GOAL#g1', GSI1PK: 'USER#sub1', GSI1SK: 'GOAL#0000000001#g1', id: 'g1', sub: 'sub1', name: 'Lean FIRE', type: 'lean_fire' as const, tracksAgainst: 'total_savings' as const, targetAmount: 500000, sortOrder: 1, status: 'active' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+
+  it('shows active goals with progress bar', async () => {
+    mockQueryByUser.mockResolvedValue([sgdAccount]);
+    mockQueryGoals.mockResolvedValue([activeGoal]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Lean FIRE');
+    expect((res as { body: string }).body).toContain('View all');
+    expect((res as { body: string }).body).toContain('20.0%');
+  });
+
+  it('shows no target set when goal targetAmount is 0', async () => {
+    mockQueryGoals.mockResolvedValue([{ ...activeGoal, targetAmount: 0 }]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('No target set');
+  });
+
+  it('shows target when currentValue is null', async () => {
+    mockQueryGoals.mockResolvedValue([{ ...activeGoal, tracksAgainst: 'net_worth' as const, targetAmount: 500000 }]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Target:');
+  });
+
+  it('does not show goals section when no active goals', async () => {
+    mockQueryGoals.mockResolvedValue([{ ...activeGoal, status: 'achieved' as const }]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).not.toContain('View all');
   });
 });
