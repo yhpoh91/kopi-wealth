@@ -252,7 +252,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const currency = settings?.currency ?? 'SGD';
 
   const goals = await queryByUser(sub);
-  const sorted = [...goals].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+  const statusRank = (s: string) => s === 'achieved' ? 1 : 0;
+  const sorted = [...goals].sort((a, b) =>
+    statusRank(a.status) - statusRank(b.status) || a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt),
+  );
 
   const metrics = await buildMetrics(sub, currency);
   const today = clock.today();
