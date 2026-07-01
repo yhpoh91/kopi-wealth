@@ -451,6 +451,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ${goalCards}
       ${addPanel}
       ${deleteOverlay}
+      <script type="application/json" id="tracks-desc-data">${tracksDescJson}</script>
       <script>
         var _tracksDesc = JSON.parse(document.getElementById('tracks-desc-data').textContent);
         function updateTracksDesc(descId, value) {
@@ -465,7 +466,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           document.getElementById('delete-overlay').classList.add('open');
         }
       </script>
-      <script type="application/json" id="tracks-desc-data">${tracksDescJson}</script>
     </div>`;
 
   return {
