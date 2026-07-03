@@ -46,6 +46,8 @@ npm run migrate:check:prod
 - **Key cache** — `src/lib/secrets.ts` caches Secrets Manager values for 5 min per cold start.
 - **Admin access** — `role: 'admin'` on `UserRecord`. Set manually via migration; never via app.
 - **Feature flags** — DDB items `FEATURE#{name}`; evaluated per-user with allowedSubs/blockedSubs/rolloutPercent.
+- **S3** — `wealth-{stage}-receipts` bucket for receipt images and statement files. Presigned PUTs from browser; presigned GETs (short TTL) for display. Never proxy file bytes through Lambda.
+- **AI extraction** — `src/lib/anthropic.ts` wraps Claude API calls. API key via Secrets Manager (`wealth/{stage}/anthropic-api-key`). Always degrade gracefully on failure.
 
 ## Security Invariants
 
@@ -76,6 +78,9 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 | ReceivableSnapshot | `RECV_SNAP#{recvId}` | `SNAP#{recordedAt}#{uuid}` | — | — |
 | ExpenseCategory | `EXPENSE#{sub}` | `CAT#{id}` | `USER#{sub}` | `EXPENSE_CAT#{sortOrder}#{id}` |
 | ExpenseSnapshot | `EXPENSE_SNAP#{catId}` | `SNAP#{period}` (YYYY-MM) | — | — |
+| ExpenseItem | `EXPENSE_ITEM#{sub}` | `ITEM#{date}#{id}` | — | — |
+| StatementImport | `STMT_IMPORT#{sub}` | `IMPORT#{createdAt}#{id}` | — | — |
+| StatementItem | `STMT_ITEM#{importId}` | `ITEM#{date}#{id}` | — | — |
 | Goal | `GOAL#{sub}` | `GOAL#{id}` | `USER#{sub}` | `GOAL#{sortOrder}#{id}` |
 | GoalSnapshot | `GOAL_SNAP#{goalId}` | `SNAP#{date}` (YYYY-MM-DD) | — | — |
 | FeatureFlag | `FEATURE#{name}` | `FEATURE#{name}` | — | — |
@@ -126,6 +131,7 @@ kopi-wealth/
 ├── vitest.config.ts
 ├── CLAUDE.md            # This file
 ├── MILESTONES.md
+├── docs/                # Per-milestone scope + design documents
 └── .github/workflows/
     ├── deploy.yml       # ci job (typecheck + test) → deploy job (AWS deploy); deploy needs ci
     └── migrate.yml      # Manual migration dispatch
