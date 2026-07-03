@@ -85,6 +85,15 @@ vi.mock('../../src/lib/clock', () => ({
 - **Edit forms: currency is read-only.** Currency cannot be changed after creation. Render it as a disabled text input next to the balance field so the user has context.
 - **Only add to nav in the milestone that ships the page.** Don't wire the route before the handler exists.
 - **Escape all interpolated values** with `escapeHtml()` in every HTML template string.
+- **JSON in `<script type="application/json">`: never `escapeHtml`, always place before the reading script.** `escapeHtml` corrupts JSON (`"` → `&quot;`); `JSON.parse` throws on the result. The data script must also appear before the script that calls `getElementById` on it — scripts execute in document order.
+- **Stage-aware UI**: the header always shows a `PREVIEW` pill badge on non-prod; the PWA manifest uses `"Kopi Wealth"` on prod and `"Kopi Wealth Preview"` on preview. Drive both from `config.stage`.
+
+---
+
+## Auth / SSO
+
+- **Sync `picture` from ID token on every login.** Extract `picture` from the OIDC ID token in `verifyIdToken`, store it in `UserRecord`, and overwrite it unconditionally in the callback (both new-user provision and existing-user update paths). Removing a photo in SSO is reflected on next login without any extra endpoint.
+- **`escapeHtml` the picture URL** before interpolating it into an `<img src="...">` attribute — the URL comes from an external claim and must be escaped to prevent attribute injection.
 
 ---
 

@@ -88,6 +88,19 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 - In CI: use the `migrate.yml` dispatch workflow (Actions tab → Run Migrations).
 - Deploy workflow checks for pending migrations and **fails** if any exist — run migrations first.
 
+## Auth / User Record
+
+`UserRecord` fields: `sub`, `email`, `name?`, `picture?`, `role?`, `lastSeenAt?`, `createdAt`, `updatedAt`, `deletedAt?`, `deletedBy?`.
+
+`verifyIdToken` extracts `sub`, `email`, `name`, and `picture` from the SSO ID token. The callback handler saves all four and syncs them unconditionally on every login.
+
+## Layout / Rendering
+
+`renderPage(opts: LayoutOptions)` — all authenticated page handlers must pass:
+- `user.sub`, `user.displayName`, `user.email`, `user.picture`, `user.role`
+
+The header shows `☕ Kopi Wealth` on prod, `☕ Kopi Wealth [PREVIEW]` on all other stages. The `picture` field renders as an `<img>` in the avatar button (HTML-escaped URL); falls back to text initials when absent.
+
 ## Theming
 
 HTML pages default to dark mode. Theme toggled via `data-theme` on `<html>`, persisted to `localStorage`. Inline script before paint avoids flash.

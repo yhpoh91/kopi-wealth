@@ -46,7 +46,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return { statusCode: 400, body: 'Token exchange failed' };
   }
 
-  let claims: { sub: string; email: string; name?: string };
+  let claims: { sub: string; email: string; name?: string; picture?: string };
   try {
     claims = await verifyIdToken(idToken);
   } catch {
@@ -66,6 +66,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       sub: claims.sub,
       email: claims.email,
       name: claims.name,
+      picture: claims.picture,
       createdAt: now,
       updatedAt: now,
       lastSeenAt: now,
@@ -74,6 +75,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     user = { ...user, lastSeenAt: now, updatedAt: now };
     if (claims.email !== user.email) user = { ...user, email: claims.email };
     if (claims.name !== undefined) user = { ...user, name: claims.name };
+    user = { ...user, picture: claims.picture };
   }
   await putUser(user);
 

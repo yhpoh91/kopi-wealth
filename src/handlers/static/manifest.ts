@@ -1,8 +1,12 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+import { config } from '../../config';
+
+const isProd = config.stage === 'prod';
+const appName = isProd ? 'Kopi Wealth' : 'Kopi Wealth Preview';
 
 const manifest = JSON.stringify({
-  name: 'kopi-wealth',
-  short_name: 'kopi-wealth',
+  name: appName,
+  short_name: isProd ? 'Kopi Wealth' : 'KW Preview',
   description: 'Personal wealth OS — net worth, savings, investments, CPF',
   start_url: '/',
   display: 'standalone',
