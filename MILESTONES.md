@@ -114,7 +114,7 @@ User list + promote/demote. Feature flag editor (enabled, rolloutPercent, per-us
 
 ---
 
-## M16 — Expense Items: Core CRUD ⬜
+## M16 — Expense Items: Core CRUD ✅
 
 Per-item expense tracking. Manual text entry: amount, optional name (auto-generated from timestamp if blank), date (defaults to today, accepts past dates for backfill), currency, notes. Feed-style list grouped by date. Soft delete. No photo yet.
 
