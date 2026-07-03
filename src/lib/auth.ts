@@ -11,7 +11,7 @@ function getJwks(issuer: string) {
   return jwksCaches.get(issuer)!;
 }
 
-export async function verifyIdToken(token: string): Promise<{ sub: string; email: string; name?: string }> {
+export async function verifyIdToken(token: string): Promise<{ sub: string; email: string; name?: string; picture?: string }> {
   const jwks = getJwks(config.ssoIssuer);
   const { payload } = await jwtVerify(token, jwks, {
     issuer: config.ssoIssuer,
@@ -21,6 +21,7 @@ export async function verifyIdToken(token: string): Promise<{ sub: string; email
     sub: payload.sub as string,
     email: payload.email as string,
     name: payload.name as string | undefined,
+    picture: payload.picture as string | undefined,
   };
 }
 

@@ -6,6 +6,7 @@ export interface UserRecord {
   sub: string;
   email: string;
   name?: string;
+  picture?: string;
   role?: 'admin';
   createdAt: string;
   updatedAt: string;

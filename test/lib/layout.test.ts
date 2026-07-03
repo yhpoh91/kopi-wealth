@@ -65,6 +65,16 @@ describe('renderPage', () => {
     expect(html).toContain('onclick="openPanel()"');
   });
 
+  it('renders profile picture img when user has picture', () => {
+    const html = renderPage({ title: 'T', body: '', user: { sub: 's', displayName: 'Alice', picture: 'https://cdn.example.com/alice.jpg' } });
+    expect(html).toContain('<img src="https://cdn.example.com/alice.jpg"');
+  });
+
+  it('escapes picture URL to prevent XSS', () => {
+    const html = renderPage({ title: 'T', body: '', user: { sub: 's', picture: '"><script>bad()</script>' } });
+    expect(html).not.toContain('<script>bad()</script>');
+  });
+
   it('escapes title special chars', () => {
     const html = renderPage({ title: '<b>X</b>', body: '' });
     expect(html).toContain('&lt;b&gt;X&lt;/b&gt;');

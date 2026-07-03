@@ -20,6 +20,7 @@ export interface LayoutOptions {
     sub: string;
     displayName?: string;
     email?: string;
+    picture?: string;
     role?: 'admin';
   };
 }
@@ -53,7 +54,10 @@ function initials(name: string): string {
 
 function buildAvatarBtn(user: NonNullable<LayoutOptions['user']>): string {
   const label = user.displayName ?? user.email ?? user.sub;
-  return `<button class="avatar-btn" onclick="openPanel()" aria-label="Open user menu">${escapeHtml(initials(label))}</button>`;
+  const inner = user.picture
+    ? `<img src="${escapeHtml(user.picture)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : escapeHtml(initials(label));
+  return `<button class="avatar-btn" onclick="openPanel()" aria-label="Open user menu">${inner}</button>`;
 }
 
 function buildUserModal(user: NonNullable<LayoutOptions['user']>): string {

@@ -169,6 +169,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         sub: auth.session.sub,
         displayName: s?.displayName,
         email: user?.email,
+        picture: user?.picture,
         role: auth.session.role,
       },
     }),
