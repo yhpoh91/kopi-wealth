@@ -1,5 +1,11 @@
 import layoutHtml from '../templates/layout.html';
 import { escapeHtml } from './html';
+import { config } from '../config';
+
+const stageBadge = config.stage !== 'prod'
+  ? ' <span style="font-size:0.5rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;background:rgba(199,160,82,0.15);border:1px solid rgba(199,160,82,0.45);color:var(--color-accent);border-radius:0.25rem;padding:0.1rem 0.35rem;vertical-align:middle;margin-left:0.3rem">PREVIEW</span>'
+  : '';
+const appleAppTitle = config.stage === 'prod' ? 'Kopi Wealth' : 'Kopi Wealth Preview';
 
 export type NavPage = 'dashboard' | 'accounts' | 'investments' | 'goals' | 'cpf' | 'reserved-funds' | 'liabilities' | 'receivables' | 'expenses' | 'reports' | 'settings' | 'admin';
 
@@ -26,6 +32,8 @@ export function renderPage(opts: LayoutOptions): string {
 
   return layoutHtml
     .replace('{{TITLE}}', escapeHtml(opts.title))
+    .replace('{{APPLE_APP_TITLE}}', appleAppTitle)
+    .replace('{{STAGE_BADGE}}', stageBadge)
     .replace('{{BODY}}', opts.body)
     .replace('{{HEADER_LEFT}}', opts.headerLeft ?? '')
     .replace('{{HEADER_RIGHT}}', opts.headerRight ?? '')

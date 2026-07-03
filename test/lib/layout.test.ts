@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderPage } from '../../src/lib/layout';
 
 describe('renderPage', () => {
@@ -68,6 +68,28 @@ describe('renderPage', () => {
   it('escapes title special chars', () => {
     const html = renderPage({ title: '<b>X</b>', body: '' });
     expect(html).toContain('&lt;b&gt;X&lt;/b&gt;');
+  });
+
+  it('shows PREVIEW badge in non-prod stage', () => {
+    // STAGE env is not set in tests, so config.stage defaults to 'preview'
+    const html = renderPage({ title: 'T', body: '' });
+    expect(html).toContain('PREVIEW');
+  });
+
+  it('sets apple-mobile-web-app-title to Kopi Wealth Preview in non-prod', () => {
+    const html = renderPage({ title: 'T', body: '' });
+    expect(html).toContain('content="Kopi Wealth Preview"');
+  });
+
+  it('shows no PREVIEW badge and uses Kopi Wealth title in prod stage', async () => {
+    vi.resetModules();
+    vi.doMock('../../src/config', () => ({ config: { stage: 'prod' } }));
+    const { renderPage: renderProd } = await import('../../src/lib/layout');
+    const html = renderProd({ title: 'T', body: '' });
+    expect(html).not.toContain('PREVIEW');
+    expect(html).toContain('content="Kopi Wealth"');
+    vi.doUnmock('../../src/config');
+    vi.resetModules();
   });
 
   it('injects headerLeft and headerRight', () => {
