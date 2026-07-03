@@ -410,6 +410,88 @@ document.querySelectorAll('.fx-tip').forEach(function(tip){
 
 ---
 
+## JSON data in `<script type="application/json">` — ordering and escaping
+
+When embedding server-side data for client JS to consume (e.g. option descriptions for a `<select>`), two rules are mandatory:
+
+**1. Place the data `<script>` BEFORE the script that reads it.**
+
+The browser executes scripts in document order. If the reading script runs first, `getElementById` returns `null` and the data is never loaded.
+
+```ts
+// ✅ Correct order
+<script type="application/json" id="my-data">${jsonString}</script>
+<script>
+  var _data = JSON.parse(document.getElementById('my-data').textContent);
+  // now _data is available
+</script>
+
+// ❌ Wrong — reading script comes first; getElementById returns null
+<script>
+  var _data = JSON.parse(document.getElementById('my-data').textContent); // null → throws
+</script>
+<script type="application/json" id="my-data">${jsonString}</script>
+```
+
+**2. Never `escapeHtml()` JSON content.**
+
+`escapeHtml` converts `"` to `&quot;`, `<` to `&lt;`, etc. JSON inside a `<script>` tag is not parsed as HTML — the browser reads it as raw text. `JSON.parse('&quot;hello&quot;')` throws a `SyntaxError` because `&quot;` is not valid JSON.
+
+```ts
+// ✅ Correct — raw JSON string
+const descJson = JSON.stringify(descriptions);
+// → {"key":"value"}   ← valid JSON
+
+// ❌ Wrong — HTML-escaped JSON
+const descJson = escapeHtml(JSON.stringify(descriptions));
+// → {&quot;key&quot;:&quot;value&quot;}   ← SyntaxError in JSON.parse
+```
+
+The `escapeHtml` rule still applies to everything else in the template — only the contents of `<script type="application/json">` are exempt.
+
+---
+
+## Stage-aware PWA manifest and header badge
+
+The web app manifest (`/manifest.json`) and the HTML page header should reflect the environment to avoid confusion when switching between preview and production.
+
+**Manifest (`src/handlers/static/manifest.ts`):** import `config` and set `name` / `short_name` based on `config.stage`:
+
+```ts
+const isProd = config.stage === 'prod';
+const manifest = JSON.stringify({
+  name: isProd ? 'Kopi Wealth' : 'Kopi Wealth Preview',
+  short_name: isProd ? 'Kopi Wealth' : 'KW Preview',
+  ...
+});
+```
+
+**Header badge (`src/lib/layout.ts`):** show a small pill badge next to the logo text when not prod:
+
+```ts
+const stageBadge = config.stage !== 'prod'
+  ? ' <span style="...">PREVIEW</span>'
+  : '';
+```
+
+**Test strategy:** use `vi.resetModules()` + `vi.doMock('../config', () => ({ config: { stage: 'prod' } }))` then dynamic `import()` to cover both branches in unit tests.
+
+---
+
+## SSO `picture` claim — extract, store, and sync on every login
+
+kopi-sso emits a `picture` claim in the ID token when the user has uploaded a profile photo. To surface this in the app:
+
+1. **`verifyIdToken`** — add `picture: payload.picture as string | undefined` to the return value.
+2. **`UserRecord`** — add `picture?: string` to the type.
+3. **Callback handler** — set `picture: claims.picture` on both new-user provision and existing-user update paths. Always overwrite (not just when changed) so removing a photo is reflected on next login.
+4. **Layout** — accept `picture?: string` in the `LayoutOptions.user` object. When set, render `<img src="...">` in the avatar button instead of text initials. `escapeHtml()` the URL to prevent attribute injection.
+5. **All page handlers** — pass `picture: user?.picture` when constructing the `user` object for `renderPage`.
+
+Syncing unconditionally on login means the avatar is always current without needing a separate "refresh profile" endpoint.
+
+---
+
 ## Validation Pattern (POST handlers)
 
 Redirect back with error params on validation failure so the user sees what went wrong:
