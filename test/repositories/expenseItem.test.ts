@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { getExpenseItem, queryByUser, putExpenseItem, updateExpenseItem, softDeleteExpenseItem } from '../../src/repositories/expenseItem';
+import { getExpenseItem, queryByUser, queryByPeriod, putExpenseItem, updateExpenseItem, softDeleteExpenseItem } from '../../src/repositories/expenseItem';
 import type { ExpenseItem } from '../../src/types/expenseItem';
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
@@ -78,6 +78,28 @@ describe('queryByUser', () => {
     expect(result.items).toEqual([item]);
     const call = ddbMock.commandCalls(QueryCommand)[0];
     expect(call.args[0].input.KeyConditionExpression).toContain('SK < :before');
+  });
+});
+
+describe('queryByPeriod', () => {
+  it('returns active items for the given period', async () => {
+    ddbMock.on(QueryCommand).resolves({ Items: [item] });
+    const result = await queryByPeriod('sub1', '2026-07');
+    expect(result).toEqual([item]);
+    const call = ddbMock.commandCalls(QueryCommand)[0];
+    expect(call.args[0].input.ExpressionAttributeValues).toMatchObject({ ':prefix': 'ITEM#2026-07' });
+  });
+
+  it('filters out soft-deleted items', async () => {
+    ddbMock.on(QueryCommand).resolves({ Items: [item, deletedItem] });
+    const result = await queryByPeriod('sub1', '2026-07');
+    expect(result).toEqual([item]);
+  });
+
+  it('returns empty array when Items is undefined', async () => {
+    ddbMock.on(QueryCommand).resolves({});
+    const result = await queryByPeriod('sub1', '2026-07');
+    expect(result).toEqual([]);
   });
 });
 

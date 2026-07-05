@@ -12,6 +12,7 @@ vi.mock('../../src/repositories/cpf', () => ({ getCpf: vi.fn() }));
 vi.mock('../../src/repositories/liability', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/receivable', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/goal', () => ({ queryByUser: vi.fn().mockResolvedValue([]) }));
+vi.mock('../../src/repositories/expenseItem', () => ({ queryByPeriod: vi.fn() }));
 vi.mock('../../src/lib/clock', () => ({
   clock: { nowIso: vi.fn(() => '2026-06-29T00:00:00.000Z'), today: vi.fn(() => '2026-06-29') },
 }));
@@ -30,6 +31,7 @@ import { getCpf } from '../../src/repositories/cpf';
 import { queryByUser as queryLiabilities } from '../../src/repositories/liability';
 import { queryByUser as queryReceivables } from '../../src/repositories/receivable';
 import { queryByUser as queryGoals } from '../../src/repositories/goal';
+import { queryByPeriod as queryExpensesByPeriod } from '../../src/repositories/expenseItem';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 
 const mockRequireSession = vi.mocked(requireSession);
@@ -42,6 +44,7 @@ const mockGetCpf = vi.mocked(getCpf);
 const mockQueryLiabilities = vi.mocked(queryLiabilities);
 const mockQueryReceivables = vi.mocked(queryReceivables);
 const mockQueryGoals = vi.mocked(queryGoals);
+const mockQueryExpensesByPeriod = vi.mocked(queryExpensesByPeriod);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
 
@@ -62,6 +65,7 @@ beforeEach(() => {
   mockGetCpf.mockResolvedValue(null);
   mockQueryLiabilities.mockResolvedValue([]);
   mockQueryReceivables.mockResolvedValue([]);
+  mockQueryExpensesByPeriod.mockResolvedValue([]);
   mockGetOrFetchRates.mockResolvedValue({ rates: { MYR: 3.45 }, date: '2026-06-28' });
   mockConvertAmount.mockImplementation((amount, from, to, rates) => {
     if (from === to) return amount;
@@ -125,7 +129,7 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('>—<');
   });
 
-  it('shows savings total within Total Funds for same-currency accounts', async () => {
+  it('shows savings total for same-currency accounts', async () => {
     mockQueryByUser.mockResolvedValue([sgdAccount]);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('10,000.00');
@@ -166,6 +170,11 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('Add your first account');
   });
 
+  it('CTA links to /cash-bank', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('/cash-bank');
+  });
+
   it('hides add-account CTA when accounts exist', async () => {
     mockQueryByUser.mockResolvedValue([sgdAccount]);
     const res = await handler({} as never, {} as never, () => {});
@@ -179,16 +188,41 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('&lt;script&gt;');
   });
 
-  it('shows CPF total in Total Assets when base currency is SGD', async () => {
+  it('renders Net Worth hero card', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Net Worth');
+  });
+
+  it('renders Total Assets in supporting metrics', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Total Assets');
+  });
+
+  it('renders Total Liabilities in supporting metrics', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Total Liabilities');
+  });
+
+  it('renders Available Funds in supporting metrics', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Available Funds');
+  });
+
+  it('does NOT render Current Assets', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).not.toContain('Current Assets');
+  });
+
+  it('does NOT render Total Funds', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).not.toContain('Total Funds');
+  });
+
+  it('shows CPF total in Total Assets', async () => {
     const cpfRecord = { PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 10000, sa: 20000, ma: 5000, ra: 0, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     mockGetCpf.mockResolvedValue(cpfRecord);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('35,000.00');
-  });
-
-  it('shows Total Assets label when no CPF data', async () => {
-    const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Total Assets');
   });
 
   it('converts CPF total to base currency when not SGD', async () => {
@@ -201,7 +235,7 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('120,750.00');
   });
 
-  it('shows (SGD) note on CPF when FX fails and base is not SGD', async () => {
+  it('shows partial when CPF FX fails and base is not SGD', async () => {
     const cpfRecord = { PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 10000, sa: 20000, ma: 5000, ra: 0, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     mockGetSettings.mockResolvedValue({ ...settings, currency: 'MYR' });
     mockGetCpf.mockResolvedValue(cpfRecord);
@@ -210,19 +244,14 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('partial');
   });
 
-  it('shows Total Funds label', async () => {
-    const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Total Funds');
-  });
-
-  it('shows investments total within Total Funds', async () => {
+  it('shows investments total', async () => {
     const inv = { PK: 'INVEST#sub1', SK: 'INVEST#id1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#2024-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'IWDA', type: 'etf' as const, currency: 'SGD', value: 15000, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     mockQueryInvestments.mockResolvedValue([inv]);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('15,000.00');
   });
 
-  it('converts foreign currency investments to settings currency', async () => {
+  it('converts foreign currency investments', async () => {
     const inv = { PK: 'INVEST#sub1', SK: 'INVEST#id1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#2024-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'IWDA', type: 'etf' as const, currency: 'MYR', value: 3450, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
     mockQueryInvestments.mockResolvedValue([inv]);
     const res = await handler({} as never, {} as never, () => {});
@@ -238,11 +267,6 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('partial');
   });
 
-  it('shows Total Liabilities label', async () => {
-    const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Total Liabilities');
-  });
-
   it('shows total outstanding liabilities (active only)', async () => {
     const liab = { PK: 'LIAB#sub1', SK: 'LIAB#id1', GSI1PK: 'USER#sub1', GSI1SK: 'LIAB#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Home Loan', type: 'mortgage' as const, currency: 'SGD', originalAmount: 500000, outstandingAmount: 450000, status: 'partially_returned' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
     const settledLiab = { ...liab, id: 'id2', outstandingAmount: 0, status: 'settled' as const };
@@ -255,14 +279,8 @@ describe('GET /', () => {
     const liab = { PK: 'LIAB#sub1', SK: 'LIAB#id1', GSI1PK: 'USER#sub1', GSI1SK: 'LIAB#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Home Loan', type: 'mortgage' as const, currency: 'SGD', originalAmount: 500000, outstandingAmount: 400000, status: 'partially_returned' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
     mockQueryByUser.mockResolvedValue([sgdAccount]); // 10000
     mockQueryLiabilities.mockResolvedValue([liab]); // -400000
-    // net worth = 10000 - 400000 = -390000
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('-390,000.00');
-  });
-
-  it('shows Net Worth label', async () => {
-    const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Net Worth');
   });
 
   it('shows partial note on liabilities when FX unavailable', async () => {
@@ -274,24 +292,10 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('partial');
   });
 
-  it('shows Available Funds label', async () => {
-    const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Available Funds');
-  });
-
-  it('shows total outstanding receivables in Current Assets', async () => {
-    const recv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan to Bob', type: 'personal_loan' as const, currency: 'SGD', originalAmount: 10000, outstandingAmount: 8000, status: 'partially_received' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
-    const settledRecv = { ...recv, id: 'id2', outstandingAmount: 0, status: 'settled' as const };
-    mockQueryReceivables.mockResolvedValue([recv, settledRecv]);
-    const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('8,000.00');
-  });
-
-  it('includes receivables in net worth calculation', async () => {
+  it('includes receivables in net worth', async () => {
     const recv = { PK: 'RECV#sub1', SK: 'RECV#id1', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#2026-06-29T00:00:00.000Z', id: 'id1', sub: 'sub1', name: 'Loan to Bob', type: 'personal_loan' as const, currency: 'SGD', originalAmount: 10000, outstandingAmount: 8000, status: 'partially_received' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-29T00:00:00.000Z' };
     mockQueryByUser.mockResolvedValue([sgdAccount]); // 10000
     mockQueryReceivables.mockResolvedValue([recv]); // +8000
-    // net worth = 10000 + 8000 = 18000
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('18,000.00');
   });
@@ -323,7 +327,7 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('5,405.00');
   });
 
-  it('computes available funds when savings and investments both exist', async () => {
+  it('shows Available Funds when savings and investments exist', async () => {
     const invest = { PK: 'INVEST#sub1', SK: 'INVEST#i1', GSI1PK: 'USER#sub1', GSI1SK: 'INVEST#', id: 'i1', sub: 'sub1', name: 'Stocks', type: 'stocks' as const, currency: 'SGD', value: 50000, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
     mockQueryByUser.mockResolvedValue([sgdAccount]);
     mockQueryInvestments.mockResolvedValue([invest]);
@@ -342,27 +346,13 @@ describe('GET /', () => {
     expect((res as { body: string }).body).toContain('17,000.00');
   });
 
-  it('shows Current Assets excluding CPF', async () => {
-    const cpfRecord = { PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 5000, sa: 0, ma: 0, ra: 0, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
-    mockQueryByUser.mockResolvedValue([sgdAccount]); // 10000
-    mockGetCpf.mockResolvedValue(cpfRecord); // 5000 (excluded from current assets)
-    // Current Assets = 10000 (no investments, no receivables)
-    // Total Assets = 10000 + 5000 = 15000
-    const res = await handler({} as never, {} as never, () => {});
-    const body = (res as { body: string }).body;
-    expect(body).toContain('15,000.00'); // Total Assets
-    expect(body).toContain('10,000.00'); // Current Assets (and Total Funds)
-  });
-
-  it('shows — for Available Funds when no accounts or investments', async () => {
-    const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).toContain('Available Funds');
-    // With no accounts/investments, value shows —
-    expect((res as { body: string }).body).toContain('>—<');
+  it('queries expense items for current period', async () => {
+    await handler({} as never, {} as never, () => {});
+    expect(mockQueryExpensesByPeriod).toHaveBeenCalledWith('sub1', '2026-06');
   });
 });
 
-describe('GET /dashboard — goals section', () => {
+describe('GET / — goals section', () => {
   const sgdAccount = { PK: 'ACCOUNT#sub1', SK: 'ACCOUNT#a1', GSI1PK: 'USER#sub1', GSI1SK: 'ACCOUNT#2026-01-01T00:00:00.000Z', id: 'a1', sub: 'sub1', name: 'POSB', type: 'savings' as const, currency: 'SGD', balance: 100000, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
   const activeGoal = { PK: 'GOAL#sub1', SK: 'GOAL#g1', GSI1PK: 'USER#sub1', GSI1SK: 'GOAL#0000000001#g1', id: 'g1', sub: 'sub1', name: 'Lean FIRE', type: 'lean_fire' as const, tracksAgainst: 'total_savings' as const, targetAmount: 500000, sortOrder: 1, status: 'active' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
 
@@ -371,8 +361,45 @@ describe('GET /dashboard — goals section', () => {
     mockQueryGoals.mockResolvedValue([activeGoal]);
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('Lean FIRE');
-    expect((res as { body: string }).body).toContain('View all');
     expect((res as { body: string }).body).toContain('20.0%');
+  });
+
+  it('shows top 2 goals only', async () => {
+    mockQueryByUser.mockResolvedValue([sgdAccount]);
+    const goals = [
+      activeGoal,
+      { ...activeGoal, id: 'g2', SK: 'GOAL#g2', name: 'Second Goal', sortOrder: 2 },
+      { ...activeGoal, id: 'g3', SK: 'GOAL#g3', name: 'Third Goal', sortOrder: 3 },
+    ];
+    mockQueryGoals.mockResolvedValue(goals);
+    const res = await handler({} as never, {} as never, () => {});
+    const body = (res as { body: string }).body;
+    expect(body).toContain('Lean FIRE');
+    expect(body).toContain('Second Goal');
+    expect(body).not.toContain('Third Goal');
+  });
+
+  it('shows "View all →" when more than 2 active goals', async () => {
+    const goals = [
+      activeGoal,
+      { ...activeGoal, id: 'g2', SK: 'GOAL#g2', name: 'Second Goal', sortOrder: 2 },
+      { ...activeGoal, id: 'g3', SK: 'GOAL#g3', name: 'Third Goal', sortOrder: 3 },
+    ];
+    mockQueryGoals.mockResolvedValue(goals);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('View all →');
+  });
+
+  it('shows "View all" without arrow when exactly 2 active goals', async () => {
+    const goals = [
+      activeGoal,
+      { ...activeGoal, id: 'g2', SK: 'GOAL#g2', name: 'Second Goal', sortOrder: 2 },
+    ];
+    mockQueryGoals.mockResolvedValue(goals);
+    const res = await handler({} as never, {} as never, () => {});
+    const body = (res as { body: string }).body;
+    expect(body).toContain('View all');
+    expect(body).not.toContain('View all →');
   });
 
   it('shows no target set when goal targetAmount is 0', async () => {
@@ -387,9 +414,54 @@ describe('GET /dashboard — goals section', () => {
     expect((res as { body: string }).body).toContain('Target:');
   });
 
-  it('does not show goals section when no active goals', async () => {
+  it('shows empty goals state with link when no active goals', async () => {
     mockQueryGoals.mockResolvedValue([{ ...activeGoal, status: 'achieved' as const }]);
     const res = await handler({} as never, {} as never, () => {});
-    expect((res as { body: string }).body).not.toContain('View all');
+    const body = (res as { body: string }).body;
+    expect(body).toContain('No active goals');
+    expect(body).toContain('/goals');
+  });
+});
+
+describe('GET / — cash flow section', () => {
+  const expenseItem = { PK: 'EXPENSE_ITEM#sub1', SK: 'ITEM#2026-06-15#e1', id: 'e1', sub: 'sub1', name: 'Lunch', amount: 12.50, currency: 'SGD', date: '2026-06-15', createdAt: '2026-06-15T12:00:00.000Z', updatedAt: '2026-06-15T12:00:00.000Z' };
+
+  it('shows cash flow section header', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Cash Flow');
+  });
+
+  it('shows no expenses message when no items', async () => {
+    mockQueryExpensesByPeriod.mockResolvedValue([]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('No expenses recorded this month');
+  });
+
+  it('shows expenses total for same-currency items', async () => {
+    mockQueryExpensesByPeriod.mockResolvedValue([
+      expenseItem,
+      { ...expenseItem, id: 'e2', amount: 30 },
+    ]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('42.50');
+  });
+
+  it('uses exchangeRate for foreign currency expense items', async () => {
+    const usdItem = { ...expenseItem, currency: 'USD', amount: 10, exchangeRate: 1.35 };
+    mockQueryExpensesByPeriod.mockResolvedValue([usdItem]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('13.50');
+  });
+
+  it('marks partial when foreign expense item has no exchangeRate', async () => {
+    const usdItem = { ...expenseItem, currency: 'USD', amount: 10 };
+    mockQueryExpensesByPeriod.mockResolvedValue([usdItem]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('partial');
+  });
+
+  it('shows month label in cash flow header', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Jun');
   });
 });
