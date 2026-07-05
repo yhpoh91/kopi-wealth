@@ -8,6 +8,7 @@ import { getSettings } from '../repositories/financialSettings';
 import { getAccount, queryByUser, putAccount, updateAccount, softDelete, putSnapshot } from '../repositories/account';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
+import { getAccountManagementUrl } from '../lib/account-management';
 import type { AccountType } from '../types/account';
 
 const ACCOUNT_TYPES: AccountType[] = ['savings', 'checking', 'fixed_deposit', 'cash'];
@@ -31,9 +32,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const accountId = pathParts[1];
   const action = pathParts[2];
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   if (method === 'POST') {
@@ -349,6 +351,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Cash & Bank — kopi-wealth',
       body,
       page: 'accounts-section',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,

@@ -8,6 +8,7 @@ import { getSettings } from '../repositories/financialSettings';
 import { getInvestment, queryByUser, putInvestment, updateInvestment, softDelete, putSnapshot } from '../repositories/investment';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
+import { getAccountManagementUrl } from '../lib/account-management';
 import { INVESTMENT_TYPES, INVESTMENT_TYPE_LABELS } from '../types/investment';
 import type { InvestmentType } from '../types/investment';
 
@@ -25,9 +26,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const investId = pathParts[1];
   const action = pathParts[2];
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   if (method === 'POST') {
@@ -345,6 +347,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Investments — kopi-wealth',
       body,
       page: 'accounts-section',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,

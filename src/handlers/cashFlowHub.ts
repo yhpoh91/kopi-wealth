@@ -4,14 +4,16 @@ import { renderPage } from '../lib/layout';
 import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
 import { escapeHtml } from '../lib/html';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSession(event);
   if (!auth.authenticated) return auth.redirect;
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? auth.session.sub;
@@ -51,6 +53,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Cash Flow — kopi-wealth',
       body,
       page: 'cash-flow',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName,

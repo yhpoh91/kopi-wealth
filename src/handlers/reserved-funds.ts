@@ -10,6 +10,7 @@ import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
 import { calcReservedFunds, calcAvailableFunds, calcEmergencyFund } from '../lib/finance/reserved-funds';
 import type { FinancialSettings } from '../types/financialSettings';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 const fmt = (n: number) =>
   n.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -73,9 +74,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if (!auth.authenticated) return auth.redirect;
 
   const method = event.requestContext.http.method;
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   const currency = settings?.currency ?? 'SGD';
@@ -165,6 +167,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Reserved Funds — kopi-wealth',
       body,
       page: 'accounts-section',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: s?.displayName,

@@ -9,6 +9,7 @@ import { getReceivable, queryByUser, putReceivable, updateReceivable, softDelete
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
 import { calcReceivableStatus } from '../lib/finance/receivable';
+import { getAccountManagementUrl } from '../lib/account-management';
 import type { ReceivableType } from '../types/receivable';
 
 const RECEIVABLE_TYPES: ReceivableType[] = ['personal_loan', 'rental_deposit', 'business_loan', 'other'];
@@ -35,9 +36,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const recvId = pathParts[1];
   const action = pathParts[2];
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   if (method === 'POST') {
@@ -347,6 +349,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Receivables — kopi-wealth',
       body,
       page: 'accounts-section',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,

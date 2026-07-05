@@ -13,6 +13,7 @@ vi.mock('../../src/repositories/liability', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/receivable', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/goal', () => ({ queryByUser: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../src/repositories/expenseItem', () => ({ queryByPeriod: vi.fn() }));
+vi.mock('../../src/lib/account-management', () => ({ getAccountManagementUrl: vi.fn() }));
 vi.mock('../../src/lib/clock', () => ({
   clock: { nowIso: vi.fn(() => '2026-06-29T00:00:00.000Z'), today: vi.fn(() => '2026-06-29') },
 }));
@@ -33,6 +34,7 @@ import { queryByUser as queryReceivables } from '../../src/repositories/receivab
 import { queryByUser as queryGoals } from '../../src/repositories/goal';
 import { queryByPeriod as queryExpensesByPeriod } from '../../src/repositories/expenseItem';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
+import { getAccountManagementUrl } from '../../src/lib/account-management';
 
 const mockRequireSession = vi.mocked(requireSession);
 const mockGetUser = vi.mocked(getUser);
@@ -45,6 +47,7 @@ const mockQueryLiabilities = vi.mocked(queryLiabilities);
 const mockQueryReceivables = vi.mocked(queryReceivables);
 const mockQueryGoals = vi.mocked(queryGoals);
 const mockQueryExpensesByPeriod = vi.mocked(queryExpensesByPeriod);
+const mockGetAccountManagementUrl = vi.mocked(getAccountManagementUrl);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
 
@@ -66,6 +69,7 @@ beforeEach(() => {
   mockQueryLiabilities.mockResolvedValue([]);
   mockQueryReceivables.mockResolvedValue([]);
   mockQueryExpensesByPeriod.mockResolvedValue([]);
+  mockGetAccountManagementUrl.mockResolvedValue('');
   mockGetOrFetchRates.mockResolvedValue({ rates: { MYR: 3.45 }, date: '2026-06-28' });
   mockConvertAmount.mockImplementation((amount, from, to, rates) => {
     if (from === to) return amount;
@@ -463,5 +467,19 @@ describe('GET / — cash flow section', () => {
   it('shows month label in cash flow header', async () => {
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('Jun');
+  });
+});
+
+describe('Manage Account link', () => {
+  it('renders Manage Account link when URL is set', async () => {
+    mockGetAccountManagementUrl.mockResolvedValue('https://sso.example.com/account?client_id=abc&return_url=https%3A%2F%2Fwealth.example.com%2F');
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('Manage Account');
+  });
+
+  it('omits Manage Account link when URL is empty', async () => {
+    mockGetAccountManagementUrl.mockResolvedValue('');
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).not.toContain('Manage Account');
   });
 });
