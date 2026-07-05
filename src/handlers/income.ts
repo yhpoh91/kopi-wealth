@@ -257,13 +257,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           <label>Name <span style="color:var(--color-text-muted);font-size:0.8rem">(optional — auto-generated if blank)</span></label>
           <input name="name" type="text" maxlength="100" placeholder="e.g. Main job">
         </div>
-        <div class="form-group" style="display:flex;gap:0.5rem;align-items:flex-end">
+        <div style="display:flex;flex-direction:row;gap:0.5rem;align-items:flex-end;margin-bottom:1rem">
           <div style="flex:0 0 7rem">
-            <label>Currency</label>
+            <label style="display:block;font-size:0.85rem;color:var(--color-text-muted);margin-bottom:0.4rem">Currency</label>
             <select name="currency" id="add-currency" onchange="syncAddFx()">${currencyOptionsAdd}</select>
           </div>
           <div style="flex:1">
-            <label>Amount</label>
+            <label style="display:block;font-size:0.85rem;color:var(--color-text-muted);margin-bottom:0.4rem">Amount</label>
             <input name="amount" id="add-amount" type="number" step="0.01" min="0.01" required placeholder="0.00">
           </div>
         </div>
