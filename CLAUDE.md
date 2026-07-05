@@ -76,6 +76,7 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 | LiabilitySnapshot | `LIAB_SNAP#{liabId}` | `SNAP#{recordedAt}#{uuid}` | — | — |
 | Receivable | `RECV#{sub}` | `RECV#{id}` | `USER#{sub}` | `RECV#{createdAt}` |
 | ReceivableSnapshot | `RECV_SNAP#{recvId}` | `SNAP#{recordedAt}#{uuid}` | — | — |
+| IncomeSource | `INCOME#{sub}` | `INCOME#{id}` | `USER#{sub}` | `INCOME#{createdAt}` |
 | ExpenseCategory | `EXPENSE#{sub}` | `CAT#{id}` | `USER#{sub}` | `EXPENSE_CAT#{sortOrder}#{id}` |
 | ExpenseSnapshot | `EXPENSE_SNAP#{catId}` | `SNAP#{period}` (YYYY-MM) | — | — |
 | ExpenseItem | `EXPENSE_ITEM#{sub}` | `ITEM#{date}#{id}` | — | — |

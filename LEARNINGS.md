@@ -562,6 +562,67 @@ Use `<template>` for safe HTML insertion (preserves scripts/custom elements, doe
 
 ---
 
+## Navigation Architecture — 3-tab nav with hub pages
+
+**Pattern:** Bottom nav has exactly 3 tabs. Tabs that aggregate multiple sections use a **hub page** as the tab landing. The hub shows live totals for each section as tappable cards — no management happens on the hub itself.
+
+- **Dashboard** (`/`) — at-a-glance: net worth hero, 3 supporting metrics, top goals, cash flow preview
+- **Accounts** (`/accounts`) — hub for all financial tracking: Cash & Bank, Investments, CPF, Receivables, Liabilities, Goals, Reserved Funds, Income
+- **Cash Flow** (`/cash-flow`) — hub for money movement: Income, Expenses, Budget
+
+**`NavPage` type:** Use `'accounts-hub'` for the hub page itself, `'accounts-section'` for all section pages under it (Cash & Bank, Investments, CPF, etc.). Both values activate the Accounts tab. This way browsing into a section doesn't deactivate the tab.
+
+**Hub data:** The hub fetches live totals from each section's repository — one `getOrFetchRates` call at the top, totals passed to card renderers. No new DDB patterns; just reuses existing repository queries.
+
+---
+
+## Income — standing sources only, not a transaction log
+
+**Concept:** Income in kopi-wealth represents **known, predictable, recurring income streams** — salary, rental, fixed retainer. It is a standing record, not a per-transaction log.
+
+| Belongs in Income | Does NOT belong in Income |
+|---|---|
+| Monthly salary (fixed) | Annual bonus |
+| Rental income (fixed lease amount) | Commission |
+| Fixed monthly freelance retainer | Dividends |
+| Any amount you can confidently predict next month | One-off windfalls |
+
+**Rationale:** Income is used for budgeting (comparing against expenses) and Cash Flow (income vs. expenses). Variable income would make the "net cash flow" figure misleading — a month without a dividend payment would look like a deficit. Record ad-hoc income as an account balance update instead.
+
+**Monthly normalisation:** `toMonthlyAmount(source)` converts quarterly (÷3) and annual (÷12) amounts so all sources can be summed into one estimated monthly figure. Label it "(est.)" in the UI — it's a standing budget figure, not a confirmed bank credit.
+
+**Ended sources:** Setting `endDate` on an income source (e.g. rental tenant moved out) marks it as ended. It is excluded from the monthly estimate but not deleted — history is preserved. Shown greyed out in a separate "Ended" group.
+
+---
+
+## Account Management URL — dynamic discovery from SSO
+
+`src/lib/account-management.ts` fetches the account management URL from the SSO OIDC discovery document (`/.well-known/openid-configuration`) at Lambda cold start. The result is cached in a module-level variable — only one HTTP call per Lambda instance, not per request.
+
+Key behaviours:
+- Returns empty string (not an error) if SSO is unreachable or `account_management_uri` is absent
+- Avatar panel only renders the "Manage Account" link when the URL is non-empty — graceful degradation
+- `return_url` is appended so the SSO portal knows where to send the user back: `config.appUrl + '/'`
+- In tests, mock `fetch` to control the discovery doc response; reset `cachedUrl` between tests by resetting module state
+
+---
+
+## Cash Flow — Income vs. Expenses vs. Budget
+
+The Cash Flow tab brings together three data sources:
+
+| Data | Source | Nature |
+|---|---|---|
+| Income (est.) | `queryIncomeByUser` → `toMonthlyAmount` sum | Standing estimate |
+| Expenses | `queryExpenseItemsByUser` filtered to YYYY-MM | Actual recorded spend |
+| Budget | `queryExpenseCategoriesByUser` → sum of `monthlyBudget` | Standing target |
+
+Show "vs Budget" (Budget − Expenses) and "vs Income" (Income − Expenses) as separate net rows. Both can be positive or negative — green if positive, red if negative.
+
+Until M-Budget ships, the Budget row is absent from Cash Flow and the Budget card in the hub is shown greyed-out as a placeholder. Never show a "vs Budget" calculation without actual budget data.
+
+---
+
 ## Validation Pattern (POST handlers)
 
 Redirect back with error params on validation failure so the user sees what went wrong:
