@@ -99,10 +99,21 @@ vi.mock('../../src/lib/clock', () => ({
 
 ## FX Rates
 
-- **Fetch once per request.** Call `getOrFetchRates(baseCurrency)` once at the top of the GET handler; pass `rates` and `ratesDate` down to card renderers. Never call it inside a loop or per-card render.
+- **Fetch once per request (dashboard/list pages).** Call `getOrFetchRates(baseCurrency)` once at the top of the GET handler; pass `rates` and `ratesDate` down to card renderers. Never call it inside a loop or per-card render.
 - **`getOrFetchRates` returns `{ rates, date }`** — use `date` for tooltip display without an extra DDB call.
 - **Show rate and retrieval date** on foreign-currency cards: `(1 USD = 1.35 SGD)` with an ℹ️ hover tooltip showing `Rate as of YYYY-MM-DD`.
 - **Gracefully degrade** when FX fetch fails — show `≈ SGD —` and mark totals as `(partial)`.
+- **Historical rates (per-item expenses):** use `getOrFetchHistoricalRate(from, to, date)` from `src/lib/fx.ts`. Cached in DynamoDB (`FXRATE#{from}` / `FXRATE#{date}`) with a 30-day TTL. Exposed via `GET /fx-rate?from=&to=&date=` (authenticated) so the browser never calls frankfurter.app directly.
+- **Never call frankfurter.app from the browser.** All FX fetches go through the server-side cache endpoint. The browser calls `/fx-rate`; the server calls `getOrFetchHistoricalRate` which handles caching.
+
+---
+
+## Pagination — JS-driven append, not full-page navigation
+
+- **"Load more" must append, not replace.** A `<a href="?before=...">` link navigates away and discards the existing list. Use a `<button>` with JS that fetches `?partial=1&before=<cursor>` and appends the returned HTML into the grid.
+- **`?partial=1` mode:** the same GET handler returns `{ itemsHtml: string, nextCursor: string | null }` JSON instead of a full page. Reuse the same auth, query, and render logic — no separate endpoint needed.
+- **Use `<template>` for HTML insertion** (`document.createElement('template'); tmp.innerHTML = d.itemsHtml; grid.appendChild(tmp.content)`) — safe, doesn't trigger premature resource loads.
+- **DynamoDB `FilterExpression` consumes `Limit` slots.** Never use `FilterExpression` with a `Limit` to exclude soft-deleted items — deleted items count against the limit before filtering, causing `hasMore` to never trigger. Over-fetch (`Limit: Math.max((limit + 1) * 2, 50)`) and filter in JavaScript instead.
 
 ---
 
