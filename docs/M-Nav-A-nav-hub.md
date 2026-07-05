@@ -174,6 +174,20 @@ All existing section handlers (`investments`, `cpf`, `goals`, etc.) have their `
 
 ---
 
+## Route Migration Risk Assessment
+
+The `/accounts` → `/cash-bank` rename was assessed and deemed **not a risk** for this app. Reasons:
+
+- **`/accounts` is not a dead link after deploy** — it becomes the Accounts hub, so bookmarks still land somewhere useful.
+- **Server-rendered HTML** — no external API consumers. All links are rendered fresh per request; there are no stale client-side route references that persist independently.
+- **PWA cache** — service worker cache is busted on each deploy (new asset hashes). First load after deploy fetches fresh HTML with updated links.
+- **`POST /accounts` (create)** is the only truly broken path. If a user has the Add form open at the exact moment of deploy and submits, they get a 404. Acceptable on a personal app; not worth a permanent redirect handler.
+- **301 redirect for POST is incorrect HTTP** — browsers don't follow redirects as POSTs. A redirect shim would not actually solve the edge case anyway.
+
+Conclusion: hard cutover at deploy time, no redirect or deprecation window needed.
+
+---
+
 ## Acceptance Criteria
 
 - [ ] Bottom nav shows exactly 3 tabs: Dashboard, Accounts, Cash Flow
