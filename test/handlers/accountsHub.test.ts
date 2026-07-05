@@ -9,6 +9,7 @@ vi.mock('../../src/repositories/cpf', () => ({ getCpf: vi.fn() }));
 vi.mock('../../src/repositories/liability', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/receivable', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/goal', () => ({ queryByUser: vi.fn() }));
+vi.mock('../../src/repositories/income', () => ({ queryIncomeByUser: vi.fn() }));
 vi.mock('../../src/lib/fx', () => ({
   getOrFetchRates: vi.fn(),
   convertAmount: vi.fn(),
@@ -28,6 +29,7 @@ import { queryByUser as queryLiabilities } from '../../src/repositories/liabilit
 import { queryByUser as queryReceivables } from '../../src/repositories/receivable';
 import { queryByUser as queryGoals } from '../../src/repositories/goal';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
+import { queryIncomeByUser } from '../../src/repositories/income';
 
 const mockRequireSession = vi.mocked(requireSession);
 const mockGetUser = vi.mocked(getUser);
@@ -40,6 +42,7 @@ const mockQueryReceivables = vi.mocked(queryReceivables);
 const mockQueryGoals = vi.mocked(queryGoals);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
+const mockQueryIncomeByUser = vi.mocked(queryIncomeByUser);
 
 const auth = { authenticated: true as const, session: { sessionId: 's1', sub: 'sub1', role: undefined as undefined } };
 const user = { PK: 'USER#sub1', SK: 'USER#sub1', GSI1PK: 'ALL_USERS', GSI1SK: 'USER#sub1', sub: 'sub1', email: 'u@e.com', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' };
@@ -66,6 +69,7 @@ beforeEach(() => {
   mockQueryLiabilities.mockResolvedValue([]);
   mockQueryReceivables.mockResolvedValue([]);
   mockQueryGoals.mockResolvedValue([]);
+  mockQueryIncomeByUser.mockResolvedValue([]);
   mockGetOrFetchRates.mockResolvedValue({ rates: {}, date: '2026-07-05' });
   mockConvertAmount.mockImplementation((amount, from, to) => from === to ? amount : null);
 });

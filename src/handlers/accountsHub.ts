@@ -9,6 +9,8 @@ import { getCpf } from '../repositories/cpf';
 import { queryByUser as queryLiabilities } from '../repositories/liability';
 import { queryByUser as queryReceivables } from '../repositories/receivable';
 import { queryByUser as queryGoals } from '../repositories/goal';
+import { queryIncomeByUser } from '../repositories/income';
+import { toMonthlyAmount } from '../types/income';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
@@ -26,13 +28,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const currency = settings?.currency ?? 'SGD';
 
-  const [accounts, investments, cpf, liabilities, receivables, goals] = await Promise.all([
+  const [accounts, investments, cpf, liabilities, receivables, goals, incomeSources] = await Promise.all([
     queryAccounts(auth.session.sub),
     queryInvestments(auth.session.sub),
     getCpf(auth.session.sub),
     queryLiabilities(auth.session.sub),
     queryReceivables(auth.session.sub),
     queryGoals(auth.session.sub),
+    queryIncomeByUser(auth.session.sub),
   ]);
 
   const foreignCurrencies = [...new Set([
@@ -117,6 +120,18 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const activeGoals = goals.filter((g) => g.status === 'active');
 
+  // Income monthly total (active sources only — no endDate or endDate >= today)
+  const today = clock.today();
+  const activeIncome = incomeSources.filter(s => !s.endDate || s.endDate >= today);
+  let incomeMonthly = 0;
+  let incomePartial = false;
+  for (const s of activeIncome) {
+    const monthly = toMonthlyAmount(s);
+    if (s.currency === currency) { incomeMonthly += monthly; }
+    else if (s.exchangeRate != null) { incomeMonthly += monthly * s.exchangeRate; }
+    else { incomePartial = true; }
+  }
+
   const partial = (flag: boolean) => flag ? ' <span style="font-size:0.7rem;color:var(--color-text-muted)" title="Partial FX conversion">~</span>' : '';
 
   const card = (href: string, icon: string, label: string, value: string, flag: boolean) => `
@@ -188,6 +203,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   <div class="hub-grid">
     ${planCard('/goals', '🎯', 'Goals', activeGoals.length === 1 ? '1 active' : `${activeGoals.length} active`)}
     ${planCard('/reserved-funds', '🛡️', 'Reserved Funds', settings?.ef1SavingsFixed || settings?.ef1SavingsPct ? 'configured' : 'not set up')}
+  </div>
+
+  <div class="hub-section-label">Income</div>
+  <div class="hub-grid">
+    ${wideCard('/income', '💰', 'Income', `${fmt(incomeMonthly)} / mo`, incomePartial)}
   </div>`;
 
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? auth.session.sub;

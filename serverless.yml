@@ -266,6 +266,23 @@ functions:
           method: POST
           path: /expenses/items/{id}/delete
 
+  income:
+    handler: src/handlers/income.handler
+    name: wealth-${self:provider.stage}-income
+    events:
+      - httpApi:
+          method: GET
+          path: /income
+      - httpApi:
+          method: POST
+          path: /income
+      - httpApi:
+          method: POST
+          path: /income/{id}
+      - httpApi:
+          method: POST
+          path: /income/{id}/delete
+
   settings:
     handler: src/handlers/settings.handler
     name: wealth-${self:provider.stage}-settings
