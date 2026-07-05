@@ -100,19 +100,19 @@ Redesigned dashboard to prominently display 6 financial metrics. Hero card: Net 
 
 ---
 
-## M-Nav — Navigation & Dashboard Revamp ⬜
+## M-Nav — Navigation & Dashboard Revamp 🚧
 
 3-tab bottom nav (Dashboard · Accounts · Cash Flow). Accounts hub page. Dashboard slimmed to Net Worth hero + 3 metrics + goals + cash flow preview. Account Management link in avatar panel.
 
 Design: [`docs/M-Nav-A-nav-hub.md`](docs/M-Nav-A-nav-hub.md), [`docs/M-Nav-B-dashboard.md`](docs/M-Nav-B-dashboard.md), [`docs/M-Nav-C-account-management.md`](docs/M-Nav-C-account-management.md)
 
-### M-Nav.A — 3-Tab Nav + Accounts Hub + Route Restructure ⬜
+### M-Nav.A — 3-Tab Nav + Accounts Hub + Route Restructure ✅
 
 3-tab bottom nav. `GET /accounts` becomes the Accounts hub. Cash & Bank section moves to `/cash-bank`. `GET /cash-flow` stub for Cash Flow tab. All section handlers updated to `page: 'accounts-section'`.
 
-### M-Nav.B — Dashboard Revamp ⬜
+### M-Nav.B — Dashboard Revamp ✅
 
-Strip Current Assets and Total Funds. Net Worth hero + 3 supporting lines (Total Assets, Total Liabilities, Available Funds). Top 2 active goals with progress bars. Cash Flow preview: income (est.) + expenses + net for current month.
+Strip Current Assets and Total Funds. Net Worth hero + 3 supporting lines (Total Assets, Total Liabilities, Available Funds). Top 2 active goals with progress bars. Cash Flow preview: expenses this month (income deferred to M-Income).
 
 ### M-Nav.C — Account Management in Avatar ⬜
 

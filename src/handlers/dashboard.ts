@@ -9,6 +9,7 @@ import { getCpf } from '../repositories/cpf';
 import { queryByUser as queryLiabilities } from '../repositories/liability';
 import { queryByUser as queryReceivables } from '../repositories/receivable';
 import { queryByUser as queryGoals } from '../repositories/goal';
+import { queryByPeriod as queryExpensesByPeriod } from '../repositories/expenseItem';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
@@ -40,14 +41,17 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? 'there';
   const currency = settings?.currency ?? 'SGD';
+  const today = clock.today();
+  const period = today.slice(0, 7); // YYYY-MM
 
-  const [accounts, investments, cpf, liabilities, receivables, goals] = await Promise.all([
+  const [accounts, investments, cpf, liabilities, receivables, goals, expenseItems] = await Promise.all([
     queryByUser(auth.session.sub),
     queryInvestments(auth.session.sub),
     getCpf(auth.session.sub),
     queryLiabilities(auth.session.sub),
     queryReceivables(auth.session.sub),
     queryGoals(auth.session.sub),
+    queryExpensesByPeriod(auth.session.sub, period),
   ]);
 
   // Gather all foreign currencies needed
@@ -158,24 +162,16 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     ? 'Add accounts, investments, liabilities or receivables to see net worth'
     : netWorthPartial
       ? 'Some currencies could not be converted'
-      : `As of ${escapeHtml(clock.today())}`;
+      : `As of ${escapeHtml(today)}`;
 
   // Total Assets = savings + investments + CPF + receivables
   const hasAnyAssets = hasSavingsData || hasInvestData || hasCpfData || hasRecvData;
   const totalAssetsOk = savingsOk && investOk && !cpfPartial && recvOk;
   const totalAssets = hasAnyAssets && totalAssetsOk ? savingsNum + investNum + cpfNum + recvTotal : null;
 
-  // Current Assets = savings + investments + receivables (excludes CPF)
-  const hasCurrentAssets = hasSavingsData || hasInvestData || hasRecvData;
-  const currentAssetsOk = savingsOk && investOk && recvOk;
-  const currentAssets = hasCurrentAssets && currentAssetsOk ? savingsNum + investNum + recvTotal : null;
-
-  // Total Funds = savings + investments
+  // Available Funds = savings + investments − reserved funds
   const hasAnyFunds = hasSavingsData || hasInvestData;
   const totalFundsOk = savingsOk && investOk;
-  const totalFunds = hasAnyFunds && totalFundsOk ? savingsNum + investNum : null;
-
-  // Available Funds = savings + investments − reserved funds
   const availableFunds = (() => {
     if (!settings || !hasAnyFunds) return null;
     if (!totalFundsOk) return null;
@@ -184,7 +180,24 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return availableSavings! + availableInvestments!;
   })();
 
+  // Expense items this month — sum in base currency
+  let expensesTotal = 0;
+  let expensesPartial = false;
+  for (const item of expenseItems) {
+    if (item.currency === currency) {
+      expensesTotal += item.amount;
+    } else if (item.exchangeRate != null) {
+      expensesTotal += item.amount * item.exchangeRate;
+    } else {
+      expensesPartial = true;
+    }
+  }
+
   // Build GoalMetrics for goal progress bars
+  const currentAssets = (hasSavingsData || hasInvestData || hasRecvData) && savingsOk && investOk && recvOk
+    ? savingsNum + investNum + recvTotal
+    : null;
+  const totalFunds = hasAnyFunds && totalFundsOk ? savingsNum + investNum : null;
   const goalMetrics: GoalMetrics = {
     netWorth,
     currentAssets,
@@ -195,12 +208,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     availableFunds,
   };
 
-  const activeGoals = goals
+  const allActiveGoals = goals
     .filter((g) => g.status === 'active')
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt))
-    .slice(0, 4);
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+  const topGoals = allActiveGoals.slice(0, 2);
 
-  const goalCards = activeGoals.map((g) => {
+  const goalCards = topGoals.map((g) => {
     const currentValue = resolveTrackedValue(g.tracksAgainst, goalMetrics);
     const progress = currentValue !== null && g.targetAmount > 0 ? calcGoalProgress(currentValue, g.targetAmount) : null;
     const progressBar = progress !== null
@@ -212,28 +225,60 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         ? `<div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.3rem">Target: ${escapeHtml(currency)} ${escapeHtml(fmt(g.targetAmount))}</div>`
         : '<div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.3rem">No target set</div>';
     return `<div class="card" style="padding:0.75rem">
-      <div style="font-weight:600;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(g.name)}</div>
+      <div style="font-weight:600;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🎯 ${escapeHtml(g.name)}</div>
       ${progressBar}
     </div>`;
   }).join('');
 
-  const goalsSection = activeGoals.length > 0 ? `
-    <div style="margin-bottom:1rem">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
-        <div style="font-size:0.8rem;font-weight:600;color:var(--color-text-muted)">Active Goals</div>
-        <a href="/goals" style="font-size:0.75rem;color:var(--color-accent);text-decoration:none">View all →</a>
-      </div>
-      <style>@media(min-width:600px){.goal-grid{grid-template-columns:repeat(2,1fr)!important}}</style>
-      <div class="goal-grid" style="display:grid;grid-template-columns:1fr;gap:0.5rem">${goalCards}</div>
-    </div>` : '';
+  const viewAllGoals = allActiveGoals.length > 2
+    ? `<a href="/goals" style="font-size:0.75rem;color:var(--color-accent);text-decoration:none">View all →</a>`
+    : `<a href="/goals" style="font-size:0.75rem;color:var(--color-accent);text-decoration:none">View all</a>`;
+
+  const goalsSection = topGoals.length > 0
+    ? `<div style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-text-muted)">Goals</div>
+          ${viewAllGoals}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.5rem">${goalCards}</div>
+      </div>`
+    : `<div style="margin-bottom:1rem">
+        <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-text-muted);margin-bottom:0.5rem">Goals</div>
+        <div class="card" style="padding:0.75rem;font-size:0.85rem;color:var(--color-text-muted);text-align:center">
+          No active goals. <a href="/goals" style="color:var(--color-accent)">Set one up →</a>
+        </div>
+      </div>`;
 
   const partial = '<span style="font-size:0.65rem;color:var(--color-text-muted);margin-left:0.25rem">(partial)</span>';
 
-  const metricVal = (value: number | null, hasData: boolean, isPartial: boolean) => {
-    if (!hasData) return '<span style="color:var(--color-text-muted)">—</span>';
-    if (value === null) return `<span style="color:var(--color-text-muted)">${escapeHtml(currency)} —</span>${partial}`;
-    return `${escapeHtml(currency)} ${escapeHtml(fmt(value))}${isPartial ? partial : ''}`;
+  const metricRow = (label: string, value: number | null, hasData: boolean, isPartial: boolean, color?: string) => {
+    const valueStr = !hasData
+      ? '—'
+      : value === null
+        ? `${escapeHtml(currency)} —`
+        : `${escapeHtml(currency)} ${escapeHtml(fmt(value))}`;
+    const partialMark = isPartial && hasData ? partial : '';
+    const colorStyle = color ? `color:${color}` : 'color:var(--color-accent)';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.55rem 0;border-bottom:1px solid var(--color-border)">
+      <div style="font-size:0.82rem;color:var(--color-text-muted)">${escapeHtml(label)}</div>
+      <div style="font-size:0.95rem;font-weight:700;${colorStyle}">${valueStr}${partialMark}</div>
+    </div>`;
   };
+
+  // Month label for cash flow
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthLabel = monthNames[parseInt(period.slice(5, 7), 10) - 1] ?? period;
+
+  const hasExpenses = expenseItems.length > 0;
+  const cashFlowSection = `<div style="margin-bottom:1rem">
+    <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-text-muted);margin-bottom:0.5rem">Cash Flow — ${escapeHtml(monthLabel)}</div>
+    <div class="card" style="padding:0.75rem 1rem">
+      ${hasExpenses
+        ? `${metricRow('Expenses', expensesTotal, true, expensesPartial, 'var(--color-error)')}`
+        : `<div style="font-size:0.85rem;color:var(--color-text-muted);text-align:center;padding:0.25rem 0">No expenses recorded this month. <a href="/expenses/items" style="color:var(--color-accent)">Add one →</a></div>`
+      }
+    </div>
+  </div>`;
 
   const body = `
     <div style="max-width:640px;margin:0 auto">
@@ -241,42 +286,22 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         Hello, ${escapeHtml(displayName)} 👋
       </h2>
 
-      <div class="card" style="margin-bottom:1rem;padding:1.25rem 1.5rem">
+      <!-- Net Worth hero -->
+      <div class="card" style="margin-bottom:0.75rem;padding:1.25rem 1.5rem;border-color:rgba(199,160,82,0.45)">
         <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);margin-bottom:0.4rem">Net Worth</div>
         <div style="font-size:2.25rem;font-weight:800;color:${netWorthColor};line-height:1.1">${netWorthDisplay}</div>
         <div style="font-size:0.72rem;color:var(--color-text-muted);margin-top:0.4rem">${escapeHtml(netWorthSubtext)}</div>
       </div>
 
-      <style>
-        .metrics-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.625rem; margin-bottom:1rem }
-        .metrics-grid .metric-full { grid-column: 1 / -1 }
-        @media(max-width:400px){ .metrics-grid { grid-template-columns:1fr } .metrics-grid .metric-full { grid-column:1 } }
-      </style>
-      <div class="metrics-grid">
-        <div class="card">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.4rem">Total Assets</div>
-          <div style="font-size:1.05rem;font-weight:700;color:var(--color-accent)">${metricVal(totalAssets, hasAnyAssets, hasAnyAssets && !totalAssetsOk)}</div>
-          <div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.2rem">Accounts · Invest · CPF · Recv</div>
-        </div>
-        <div class="card">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.4rem">Current Assets</div>
-          <div style="font-size:1.05rem;font-weight:700;color:var(--color-accent)">${metricVal(currentAssets, hasCurrentAssets, hasCurrentAssets && !currentAssetsOk)}</div>
-          <div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.2rem">Accounts · Invest · Recv</div>
-        </div>
-        <div class="card">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.4rem">Total Liabilities</div>
-          <div style="font-size:1.05rem;font-weight:700;color:${hasLiabData ? 'var(--color-error)' : 'inherit'}">${metricVal(hasLiabData ? liabTotal : null, hasLiabData, hasLiabData && !liabOk)}</div>
-          <div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.2rem">Active only</div>
-        </div>
-        <div class="card">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.4rem">Total Funds</div>
-          <div style="font-size:1.05rem;font-weight:700;color:var(--color-accent)">${metricVal(totalFunds, hasAnyFunds, hasAnyFunds && !totalFundsOk)}</div>
-          <div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.2rem">Accounts · Invest</div>
-        </div>
-        <div class="card metric-full" style="border-color:rgba(199,160,82,0.45)">
-          <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:0.4rem">Available Funds</div>
-          <div style="font-size:1.25rem;font-weight:700;color:var(--color-accent)">${metricVal(availableFunds, hasAnyFunds, hasAnyFunds && !totalFundsOk)}</div>
-          <div style="font-size:0.65rem;color:var(--color-text-muted);margin-top:0.2rem">Accounts + Invest − Reserved</div>
+      <!-- Supporting metrics: stacked card -->
+      <div class="card" style="margin-bottom:1rem;padding:0 1rem">
+        ${metricRow('Total Assets', totalAssets, hasAnyAssets, hasAnyAssets && !totalAssetsOk)}
+        ${metricRow('Total Liabilities', hasLiabData ? liabTotal : null, hasLiabData, hasLiabData && !liabOk, hasLiabData ? 'var(--color-error)' : undefined)}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.55rem 0">
+          <div style="font-size:0.82rem;color:var(--color-text-muted)">Available Funds</div>
+          <div style="font-size:0.95rem;font-weight:700;color:var(--color-accent)">${
+            !hasAnyFunds ? '—' : availableFunds === null ? `${escapeHtml(currency)} —` : `${escapeHtml(currency)} ${escapeHtml(fmt(availableFunds))}`
+          }${hasAnyFunds && !totalFundsOk ? partial : ''}</div>
         </div>
       </div>
 
@@ -284,10 +309,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       <div class="card" style="margin-bottom:1rem">
         <div style="font-size:0.85rem;color:var(--color-text-muted);text-align:center;padding:0.75rem 0">
           🚀 Your wealth dashboard is ready.<br>
-          <a href="/accounts" style="color:var(--color-accent)">Add your first account</a> to get started.
+          <a href="/cash-bank" style="color:var(--color-accent)">Add your first account</a> to get started.
         </div>
       </div>` : ''}
+
       ${goalsSection}
+      ${cashFlowSection}
     </div>`;
 
   return {

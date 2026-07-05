@@ -37,6 +37,16 @@ export async function queryByUser(sub: string, opts: QueryOptions = {}): Promise
   return { items, lastSK };
 }
 
+export async function queryByPeriod(sub: string, period: string): Promise<ExpenseItem[]> {
+  const res = await ddb.send(new QueryCommand({
+    TableName: config.tableName,
+    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+    ExpressionAttributeValues: { ':pk': `EXPENSE_ITEM#${sub}`, ':prefix': `ITEM#${period}` },
+    ScanIndexForward: false,
+  }));
+  return ((res.Items ?? []) as ExpenseItem[]).filter(i => !i.deletedAt);
+}
+
 export async function putExpenseItem(item: ExpenseItem): Promise<void> {
   await ddb.send(new PutCommand({
     TableName: config.tableName,
