@@ -171,7 +171,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   <div class="hub-section-label">Assets</div>
   <div class="hub-grid">
-    ${card('/cash-bank', '🏦', 'Cash &amp; Bank', fmt(cashTotal), cashPartial)}
+    ${card('/cash-bank', '🏦', 'Cash & Bank', fmt(cashTotal), cashPartial)}
     ${card('/investments', '📈', 'Investments', fmt(investTotal), investPartial)}
     ${card('/cpf', '🏛️', 'CPF', fmt(cpfTotal), cpfPartial)}
     ${card('/receivables', '📥', 'Receivables', fmt(recvTotal), recvPartial)}
