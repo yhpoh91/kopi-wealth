@@ -117,6 +117,34 @@ vi.mock('../../src/lib/clock', () => ({
 
 ---
 
+## Navigation
+
+- **Exactly 3 bottom-nav tabs:** Dashboard · Accounts · Cash Flow. No More drawer. No additional tabs without explicit approval.
+- **Accounts tab = hub + sections.** The Accounts tab is active for both the hub page (`page: 'accounts-hub'`) and all section pages under it (`page: 'accounts-section'`). Every section handler (Cash & Bank, Investments, CPF, Goals, etc.) must pass `page: 'accounts-section'` to `renderPage`.
+- **Cash Flow tab = Income + Expenses + Budget.** All money-movement features live under Cash Flow, not under Accounts.
+- **Hub pages are read-only aggregations.** No create/edit/delete on hub pages. Management happens on section pages.
+- **Cash & Bank route is `/cash-bank`.** The `/accounts` route is reserved for the Accounts hub. Do not use `/accounts` for the cash & bank section.
+
+---
+
+## Income
+
+- **Income = known, predictable, recurring streams only.** Salary, rental income, fixed retainers. Not: bonuses, commissions, dividends, one-off windfalls. Ad-hoc income is recorded as an account balance update, not an IncomeSource.
+- **Income is a standing record, not a transaction log.** One record per income stream. Updated when the amount changes; soft-closed with `endDate` when it ends. Not deleted.
+- **`toMonthlyAmount` for normalisation.** Always normalise income to monthly before summing: quarterly ÷ 3, annual ÷ 12.
+- **Label income totals as "(est.)"** in the UI — it is a standing budget estimate, not a confirmed bank credit.
+- **Ended sources excluded from estimates.** Sources with `endDate < today` or `deletedAt` do not contribute to monthly income totals. They are shown greyed-out in an "Ended" group.
+
+---
+
+## Cash Flow
+
+- **Never show "vs Budget" without budget data.** If M-Budget has not shipped, omit the Budget row and "vs Budget" net entirely. The greyed-out Budget card placeholder is acceptable; a calculated line with zero is not.
+- **"vs Income" = Income − Expenses (positive is good).** "vs Budget" = Budget − Expenses (positive = under budget). Both green when positive, red when negative.
+- **Cash Flow Income figure uses the monthly estimate from IncomeSources.** It does not pull from account transactions or account snapshots.
+
+---
+
 ## GitHub Actions
 
 - **One workflow file, two jobs.** Put CI (`typecheck + test`) and deploy as `ci` and `deploy` jobs in the same workflow file. Use `needs: ci` on the deploy job. Avoid `workflow_run` chaining between separate files.
