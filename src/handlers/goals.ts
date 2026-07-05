@@ -485,7 +485,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     body: renderPage({
       title: 'Goals — kopi-wealth',
       body,
-      page: 'goals',
+      page: 'accounts-section',
       user: { sub, displayName: settings?.displayName, email: user?.email ?? '', picture: user?.picture },
     }),
   };

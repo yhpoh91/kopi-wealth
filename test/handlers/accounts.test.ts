@@ -295,7 +295,7 @@ describe('POST /accounts (create)', () => {
 
   it('creates account and redirects', async () => {
     const res = await handler(makeEvent('POST', '/accounts', validBody), {} as never, () => {});
-    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cash-bank' } });
     expect(mockPutAccount).toHaveBeenCalledOnce();
     expect(mockPutSnapshot).toHaveBeenCalledOnce();
   });
@@ -340,7 +340,7 @@ describe('POST /accounts (create)', () => {
   it('creates account from base64-encoded body', async () => {
     const body = new URLSearchParams({ name: 'DBS Savings', type: 'savings', currency: 'SGD', balance: '10000' }).toString();
     const res = await handler(makeEvent('POST', '/accounts', body, { base64: true }), {} as never, () => {});
-    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cash-bank' } });
     expect(mockPutAccount).toHaveBeenCalledOnce();
   });
 });
@@ -350,7 +350,7 @@ describe('POST /accounts/:id (update account)', () => {
     mockGetAccount.mockResolvedValue(account);
     const body = new URLSearchParams({ name: 'DBS Updated', type: 'checking', balance: '20000' }).toString();
     const res = await handler(makeEvent('POST', '/accounts/id1', body), {} as never, () => {});
-    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cash-bank' } });
     expect(mockUpdateAccount).toHaveBeenCalledWith('sub1', 'id1', expect.objectContaining({ name: 'DBS Updated', type: 'checking', balance: 20000 }), expect.any(String));
     expect(mockPutSnapshot).toHaveBeenCalledOnce();
   });
@@ -401,7 +401,7 @@ describe('POST /accounts/:id (update account)', () => {
 describe('POST /accounts/:id/delete', () => {
   it('soft-deletes account and redirects', async () => {
     const res = await handler(makeEvent('POST', '/accounts/id1/delete', ''), {} as never, () => {});
-    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/accounts' } });
+    expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/cash-bank' } });
     expect(mockSoftDelete).toHaveBeenCalledWith('sub1', 'id1', 'sub1', expect.any(String));
   });
 });

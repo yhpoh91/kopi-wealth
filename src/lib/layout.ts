@@ -7,7 +7,10 @@ const stageBadge = config.stage !== 'prod'
   : '';
 const appleAppTitle = config.stage === 'prod' ? 'Kopi Wealth' : 'Kopi Wealth Preview';
 
-export type NavPage = 'dashboard' | 'accounts' | 'investments' | 'goals' | 'cpf' | 'reserved-funds' | 'liabilities' | 'receivables' | 'expenses' | 'reports' | 'settings' | 'admin';
+// 'accounts-hub' = the /accounts hub page itself
+// 'accounts-section' = any section page under the Accounts tab (cash-bank, investments, cpf, etc.)
+// Both activate the Accounts tab in the bottom nav.
+export type NavPage = 'dashboard' | 'accounts-hub' | 'accounts-section' | 'cash-flow' | 'settings' | 'admin';
 
 export interface LayoutOptions {
   title: string;
@@ -16,6 +19,7 @@ export interface LayoutOptions {
   headerLeft?: string;
   headerRight?: string;
   hideNav?: boolean;
+  accountManagementUrl?: string;
   user?: {
     sub: string;
     displayName?: string;
@@ -26,10 +30,10 @@ export interface LayoutOptions {
 }
 
 export function renderPage(opts: LayoutOptions): string {
-  const nav = (page: NavPage) => opts.page === page ? 'active' : '';
+  const isAccountsActive = opts.page === 'accounts-hub' || opts.page === 'accounts-section';
 
   const userPanel = opts.user ? buildAvatarBtn(opts.user) : '';
-  const userPanelModal = opts.user ? buildUserModal(opts.user) : '';
+  const userPanelModal = opts.user ? buildUserModal(opts.user, opts.accountManagementUrl) : '';
 
   return layoutHtml
     .replace('{{TITLE}}', escapeHtml(opts.title))
@@ -42,10 +46,9 @@ export function renderPage(opts: LayoutOptions): string {
     .replace('{{USER_PANEL_MODAL}}', userPanelModal)
     .replace('{{HIDE_NAV}}', opts.hideNav ? 'hidden' : '')
     .replace('{{MAIN_CLASS}}', opts.hideNav ? 'no-nav' : '')
-    .replace('{{NAV_DASHBOARD}}', nav('dashboard'))
-    .replace('{{NAV_ACCOUNTS}}', nav('accounts'))
-    .replace('{{NAV_INVESTMENTS}}', nav('investments'))
-    .replace('{{NAV_MORE}}', ['cpf', 'reserved-funds', 'liabilities', 'receivables', 'expenses', 'reports', 'goals'].includes(opts.page ?? '') ? 'active' : '');
+    .replace('{{NAV_DASHBOARD}}', opts.page === 'dashboard' ? 'active' : '')
+    .replace('{{NAV_ACCOUNTS}}', isAccountsActive ? 'active' : '')
+    .replace('{{NAV_CASHFLOW}}', opts.page === 'cash-flow' ? 'active' : '');
 }
 
 function initials(name: string): string {
@@ -60,9 +63,12 @@ function buildAvatarBtn(user: NonNullable<LayoutOptions['user']>): string {
   return `<button class="avatar-btn" onclick="openPanel()" aria-label="Open user menu">${inner}</button>`;
 }
 
-function buildUserModal(user: NonNullable<LayoutOptions['user']>): string {
+function buildUserModal(user: NonNullable<LayoutOptions['user']>, accountManagementUrl?: string): string {
   const label = user.displayName ?? user.email ?? user.sub;
   const emailLine = user.email ? `<div class="panel-email">${escapeHtml(user.email)}</div>` : '';
+  const manageAccountRow = accountManagementUrl
+    ? `<a href="${escapeHtml(accountManagementUrl)}" class="panel-row" target="_blank" rel="noopener" onclick="closePanel()">🔗 Manage Account</a>`
+    : '';
   return `
   <div class="panel-overlay" id="user-overlay" onclick="closePanel()">
     <div class="panel-sheet" onclick="event.stopPropagation()">
@@ -74,6 +80,7 @@ function buildUserModal(user: NonNullable<LayoutOptions['user']>): string {
         </div>
       </div>
       <button class="panel-row" id="theme-btn" onclick="toggleTheme()">☀️ Light mode</button>
+      ${manageAccountRow}
       <a href="/settings" class="panel-row" onclick="closePanel()">⚙️ Settings</a>
       <form method="POST" action="/auth/logout" style="display:contents">
         <button type="submit" class="panel-row danger">Sign out</button>

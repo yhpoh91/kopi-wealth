@@ -211,43 +211,25 @@
   </main>
 
   <nav class="bottom-nav {{HIDE_NAV}}">
-    <a href="/dashboard" class="nav-item {{NAV_DASHBOARD}}">
+    <a href="/" class="nav-item {{NAV_DASHBOARD}}">
       <span class="nav-icon">🏠</span>
       <span>Dashboard</span>
     </a>
     <a href="/accounts" class="nav-item {{NAV_ACCOUNTS}}">
-      <span class="nav-icon">🏦</span>
+      <span class="nav-icon">🗂️</span>
       <span>Accounts</span>
     </a>
-    <a href="/investments" class="nav-item {{NAV_INVESTMENTS}}">
-      <span class="nav-icon">📈</span>
-      <span>Investments</span>
+    <a href="/cash-flow" class="nav-item {{NAV_CASHFLOW}}">
+      <span class="nav-icon">💸</span>
+      <span>Cash Flow</span>
     </a>
-    <button class="nav-item {{NAV_MORE}}" onclick="openMore()">
-      <span class="nav-icon">⋯</span>
-      <span>More</span>
-    </button>
   </nav>
-
-  <div class="panel-overlay" id="more-overlay" onclick="closeMore()">
-    <div class="panel-sheet" onclick="event.stopPropagation()">
-      <div style="font-size:0.75rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem;">More</div>
-      <a href="/cpf" class="panel-row" onclick="closeMore()"><span>🏛️</span> CPF</a>
-      <a href="/reserved-funds" class="panel-row" onclick="closeMore()"><span>🛡️</span> Reserved Funds</a>
-      <a href="/liabilities" class="panel-row" onclick="closeMore()"><span>💳</span> Liabilities</a>
-      <a href="/receivables" class="panel-row" onclick="closeMore()"><span>🤝</span> Receivables</a>
-      <a href="/goals" class="panel-row" onclick="closeMore()"><span>🎯</span> Goals</a>
-      <a href="/expenses/items" class="panel-row" onclick="closeMore()"><span>💸</span> Expenses</a>
-    </div>
-  </div>
 
   {{USER_PANEL_MODAL}}
 
   <script>
     function openPanel(){document.getElementById('user-overlay').classList.add('open');}
     function closePanel(){document.getElementById('user-overlay').classList.remove('open');}
-    function openMore(){document.getElementById('more-overlay').classList.add('open');}
-    function closeMore(){document.getElementById('more-overlay').classList.remove('open');}
     function toggleTheme(){
       var h=document.documentElement;
       var t=h.getAttribute('data-theme')==='dark'?'light':'dark';

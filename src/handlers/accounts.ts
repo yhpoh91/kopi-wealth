@@ -25,9 +25,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const method = event.requestContext.http.method;
   const pathParts = event.rawPath.split('/').filter(Boolean);
-  // /accounts → ['accounts']
-  // /accounts/:id → ['accounts', id]
-  // /accounts/:id/delete → ['accounts', id, 'delete']
+  // /cash-bank → ['cash-bank']
+  // /cash-bank/:id → ['cash-bank', id]
+  // /cash-bank/:id/delete → ['cash-bank', id, 'delete']
   const accountId = pathParts[1];
   const action = pathParts[2];
 
@@ -45,7 +45,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     if (accountId && action === 'delete') {
       const now = clock.nowIso();
       await softDelete(auth.session.sub, accountId, auth.session.sub, now);
-      return redirect('/accounts');
+      return redirect('/cash-bank');
     }
 
     if (accountId) {
@@ -54,10 +54,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       const balance = parseFloat(params.balance ?? '');
       const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
       const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
-      if (!name || !type || isNaN(balance) || balance < 0) return redirect('/accounts?error=invalid_balance');
+      if (!name || !type || isNaN(balance) || balance < 0) return redirect('/cash-bank?error=invalid_balance');
       const now = clock.nowIso();
       const account = await getAccount(auth.session.sub, accountId);
-      if (!account || account.deletedAt) return redirect('/accounts?error=not_found');
+      if (!account || account.deletedAt) return redirect('/cash-bank?error=not_found');
       await updateAccount(auth.session.sub, accountId, { name, type, balance, institution, notes }, now);
       await putSnapshot({
         PK: `ACCT_SNAP#${accountId}`,
@@ -67,7 +67,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         recordedAt: now,
         createdAt: now,
       });
-      return redirect('/accounts');
+      return redirect('/cash-bank');
     }
 
     // Create
@@ -78,7 +78,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
     const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
 
-    if (!name || !type || !currency || isNaN(balance) || balance < 0) return redirect(`/accounts?error=invalid&name=${encodeURIComponent(params.name ?? '')}&type=${encodeURIComponent(params.type ?? '')}&currency=${encodeURIComponent(params.currency ?? '')}&balance=${encodeURIComponent(params.balance ?? '')}`);
+    if (!name || !type || !currency || isNaN(balance) || balance < 0) return redirect(`/cash-bank?error=invalid&name=${encodeURIComponent(params.name ?? '')}&type=${encodeURIComponent(params.type ?? '')}&currency=${encodeURIComponent(params.currency ?? '')}&balance=${encodeURIComponent(params.balance ?? '')}`);
 
     const id = randomUUID();
     const now = clock.nowIso();
@@ -106,7 +106,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       recordedAt: now,
       createdAt: now,
     });
-    return redirect('/accounts');
+    return redirect('/cash-bank');
   }
 
   // GET
@@ -216,7 +216,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           <div style="font-weight:600;font-size:1rem">${escapeHtml(a.name)}</div>
           <button type="button" onclick="closeAcctPanel('${escapeHtml(a.id)}')" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
         </div>
-        <form method="POST" action="/accounts/${escapeHtml(a.id)}">
+        <form method="POST" action="/cash-bank/${escapeHtml(a.id)}">
           <div class="form-group">
             <label>Account Name</label>
             <input name="name" type="text" required value="${escapeHtml(a.name)}">
@@ -245,7 +245,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           </div>
           <button type="submit" class="btn-primary" style="width:100%;margin-bottom:0.75rem">Save changes</button>
         </form>
-        <form method="POST" action="/accounts/${escapeHtml(a.id)}/delete"
+        <form method="POST" action="/cash-bank/${escapeHtml(a.id)}/delete"
           onsubmit="return confirm('Delete ${escapeHtml(a.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}?')" style="text-align:center">
           <button type="submit" style="background:none;border:none;color:var(--color-error);cursor:pointer;font-size:0.85rem;padding:0.25rem 0">Delete account</button>
         </form>
@@ -279,7 +279,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     <style>@media(min-width:600px){.acct-grid{grid-template-columns:repeat(2,1fr)!important}}</style>
     <div style="max-width:900px;margin:0 auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
-        <h2 style="font-size:1.3rem">Accounts</h2>
+        <h2 style="font-size:1.3rem">Cash &amp; Bank</h2>
         <button type="button" onclick="document.getElementById('add-overlay').classList.add('open')"
           class="btn-primary" style="padding:0.45rem 1rem;font-size:0.875rem">+ Add</button>
       </div>
@@ -298,7 +298,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           <div style="font-weight:600;font-size:1rem">Add Account</div>
           <button type="button" onclick="document.getElementById('add-overlay').classList.remove('open')" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
         </div>
-        <form method="POST" action="/accounts">
+        <form method="POST" action="/cash-bank">
           <div class="form-group">
             <label>Account Name</label>
             <input name="name" type="text" required placeholder="e.g. DBS Multiplier">
@@ -346,9 +346,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     statusCode: 200,
     headers: { 'Content-Type': 'text/html' },
     body: renderPage({
-      title: 'Accounts — kopi-wealth',
+      title: 'Cash & Bank — kopi-wealth',
       body,
-      page: 'accounts',
+      page: 'accounts-section',
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,
