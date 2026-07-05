@@ -341,12 +341,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       function _fetchRate(fromCurrency, date, inputEl, statusEl) {
         if(!fromCurrency || fromCurrency === _baseCurrency) return;
         _setFxStatus(statusEl, 'Fetching rate…');
-        fetch('https://api.frankfurter.app/' + date + '?from=' + fromCurrency + '&to=' + _baseCurrency)
+        fetch('/fx-rate?from=' + fromCurrency + '&to=' + _baseCurrency + '&date=' + date)
           .then(function(r){ return r.json(); })
           .then(function(d){
-            var rate = d && d.rates && d.rates[_baseCurrency];
-            if(rate){ inputEl.value = rate; _setFxStatus(statusEl, 'Rate fetched for ' + date); }
-            else { _setFxStatus(statusEl, 'Rate not available'); }
+            if(d && d.rate){ inputEl.value = d.rate; _setFxStatus(statusEl, 'Rate fetched for ' + date); }
+            else { _setFxStatus(statusEl, d.error || 'Rate not available'); }
           })
           .catch(function(){ _setFxStatus(statusEl, 'Could not fetch rate'); });
       }

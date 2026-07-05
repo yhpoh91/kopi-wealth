@@ -8,7 +8,7 @@ vi.mock('../../src/lib/clock', () => ({
   clock: { nowMs: () => new Date('2026-06-28T00:00:00.000Z').getTime(), nowIso: () => '2026-06-28T00:00:00.000Z', today: () => '2026-06-28' },
 }));
 
-import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
+import { getOrFetchRates, getOrFetchHistoricalRate, convertAmount } from '../../src/lib/fx';
 import { getFxRate, putFxRate } from '../../src/repositories/fxRate';
 
 const mockGetFxRate = vi.mocked(getFxRate);
@@ -19,6 +19,20 @@ const cachedRates = { MYR: 3.45, USD: 0.74 };
 beforeEach(() => {
   vi.clearAllMocks();
   mockPutFxRate.mockResolvedValue(undefined);
+});
+
+describe('fetchRates', () => {
+  it('fetches latest rates from frankfurter', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ rates: { MYR: 3.45 }, date: '2026-06-28' }),
+    } as Response);
+    const { fetchRates } = await import('../../src/lib/fx');
+    const rates = await fetchRates('SGD');
+    expect(rates).toEqual({ MYR: 3.45 });
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('latest'));
+    fetchMock.mockRestore();
+  });
 });
 
 describe('getOrFetchRates', () => {
@@ -59,6 +73,57 @@ describe('getOrFetchRates', () => {
       status: 503,
     } as Response);
     await expect(getOrFetchRates('SGD')).rejects.toThrow('FX fetch failed');
+  });
+});
+
+describe('getOrFetchHistoricalRate', () => {
+  it('returns 1 when from === to', async () => {
+    expect(await getOrFetchHistoricalRate('SGD', 'SGD', '2026-07-03')).toBe(1);
+    expect(mockGetFxRate).not.toHaveBeenCalled();
+  });
+
+  it('returns cached rate on cache hit', async () => {
+    mockGetFxRate.mockResolvedValue({
+      PK: 'FXRATE#USD', SK: 'FXRATE#2026-07-03',
+      baseCurrency: 'USD', date: '2026-07-03',
+      rates: { SGD: 1.35 }, createdAt: '2026-07-03T00:00:00.000Z', ttl: 9999999999,
+    });
+    const rate = await getOrFetchHistoricalRate('USD', 'SGD', '2026-07-03');
+    expect(rate).toBe(1.35);
+    expect(mockPutFxRate).not.toHaveBeenCalled();
+  });
+
+  it('returns null when target currency not in cached rates', async () => {
+    mockGetFxRate.mockResolvedValue({
+      PK: 'FXRATE#USD', SK: 'FXRATE#2026-07-03',
+      baseCurrency: 'USD', date: '2026-07-03',
+      rates: {}, createdAt: '2026-07-03T00:00:00.000Z', ttl: 9999999999,
+    });
+    expect(await getOrFetchHistoricalRate('USD', 'SGD', '2026-07-03')).toBeNull();
+  });
+
+  it('fetches from frankfurter and caches on miss', async () => {
+    mockGetFxRate.mockResolvedValue(null);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ rates: { SGD: 1.35 }, date: '2026-07-03' }),
+    } as Response);
+
+    const rate = await getOrFetchHistoricalRate('USD', 'SGD', '2026-07-03');
+    expect(rate).toBe(1.35);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('2026-07-03'));
+    expect(mockPutFxRate).toHaveBeenCalledOnce();
+    expect(mockPutFxRate.mock.calls[0][0]).toMatchObject({ baseCurrency: 'USD', date: '2026-07-03' });
+    fetchMock.mockRestore();
+  });
+
+  it('returns null when target currency not in fetched rates', async () => {
+    mockGetFxRate.mockResolvedValue(null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ rates: {}, date: '2026-07-03' }),
+    } as Response);
+    expect(await getOrFetchHistoricalRate('USD', 'JPY', '2026-07-03')).toBeNull();
   });
 });
 
