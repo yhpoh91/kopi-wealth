@@ -9,6 +9,7 @@ import { getLiability, queryByUser, putLiability, updateLiability, softDelete, p
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
 import { calcLiabilityStatus } from '../lib/finance/liability';
+import { getAccountManagementUrl } from '../lib/account-management';
 import type { LiabilityType } from '../types/liability';
 
 const LIABILITY_TYPES: LiabilityType[] = ['mortgage', 'personal_loan', 'car_loan', 'student_loan', 'credit_card', 'other'];
@@ -37,9 +38,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const liabId = pathParts[1];
   const action = pathParts[2];
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   if (method === 'POST') {
@@ -352,6 +354,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Liabilities — kopi-wealth',
       body,
       page: 'accounts-section',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,

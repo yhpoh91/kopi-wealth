@@ -100,7 +100,7 @@ Redesigned dashboard to prominently display 6 financial metrics. Hero card: Net 
 
 ---
 
-## M-Nav — Navigation & Dashboard Revamp 🚧
+## M-Nav — Navigation & Dashboard Revamp ✅
 
 3-tab bottom nav (Dashboard · Accounts · Cash Flow). Accounts hub page. Dashboard slimmed to Net Worth hero + 3 metrics + goals + cash flow preview. Account Management link in avatar panel.
 
@@ -114,7 +114,7 @@ Design: [`docs/M-Nav-A-nav-hub.md`](docs/M-Nav-A-nav-hub.md), [`docs/M-Nav-B-das
 
 Strip Current Assets and Total Funds. Net Worth hero + 3 supporting lines (Total Assets, Total Liabilities, Available Funds). Top 2 active goals with progress bars. Cash Flow preview: expenses this month (income deferred to M-Income).
 
-### M-Nav.C — Account Management in Avatar ⬜
+### M-Nav.C — Account Management in Avatar ✅
 
 Port `src/lib/account-management.ts` from kopi-health. Dynamically fetches `account_management_uri` from SSO OIDC discovery doc (cached per cold start). Avatar panel gains "Manage Account" link when URL is available.
 

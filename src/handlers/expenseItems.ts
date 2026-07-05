@@ -8,6 +8,7 @@ import { getSettings } from '../repositories/financialSettings';
 import { getExpenseItem, queryByUser, putExpenseItem, updateExpenseItem, softDeleteExpenseItem } from '../repositories/expenseItem';
 import { clock } from '../lib/clock';
 import type { ExpenseItem } from '../types/expenseItem';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 
@@ -165,9 +166,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const itemId = pathParts[2];
   const action = pathParts[3];
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   const currency = settings?.currency ?? 'SGD';
@@ -438,6 +440,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Expenses',
       body,
       page: 'cash-flow',
+      accountManagementUrl,
       user: {
         sub: user?.sub ?? auth.session.sub,
         displayName: user?.name,

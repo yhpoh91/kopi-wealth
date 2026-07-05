@@ -5,6 +5,7 @@ import { getUser } from '../repositories/user';
 import { getSettings, putSettings } from '../repositories/financialSettings';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 const TIMEZONES = ['Asia/Singapore', 'Asia/Kuala_Lumpur', 'Australia/Sydney', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo', 'Asia/Hong_Kong'];
@@ -13,9 +14,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSession(event);
   if (!auth.authenticated) return auth.redirect;
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   if (event.requestContext.http.method === 'POST') {
@@ -95,6 +97,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Settings — kopi-wealth',
       body,
       page: 'settings',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,

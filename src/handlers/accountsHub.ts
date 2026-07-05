@@ -12,14 +12,16 @@ import { queryByUser as queryGoals } from '../repositories/goal';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSession(event);
   if (!auth.authenticated) return auth.redirect;
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   const currency = settings?.currency ?? 'SGD';
@@ -197,6 +199,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Accounts — kopi-wealth',
       body,
       page: 'accounts-hub',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName,

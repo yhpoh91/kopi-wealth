@@ -16,6 +16,7 @@ import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { calcReservedFunds, calcAvailableFunds } from '../lib/finance/reserved-funds';
 import { resolveTrackedValue, calcGoalProgress } from '../lib/finance/goal';
 import type { Goal, GoalType, GoalStatus, TracksAgainst } from '../types/goal';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 const fmt = (n: number) => n.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -248,7 +249,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   }
 
   // GET /goals
-  const [user, settings] = await Promise.all([getUser(sub), getSettings(sub)]);
+  const [user, settings, accountManagementUrl] = await Promise.all([getUser(sub), getSettings(sub), getAccountManagementUrl()]);
   const currency = settings?.currency ?? 'SGD';
 
   const goals = await queryByUser(sub);
@@ -486,6 +487,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Goals — kopi-wealth',
       body,
       page: 'accounts-section',
+      accountManagementUrl,
       user: { sub, displayName: settings?.displayName, email: user?.email ?? '', picture: user?.picture },
     }),
   };

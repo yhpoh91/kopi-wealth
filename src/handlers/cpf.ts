@@ -7,6 +7,7 @@ import { getSettings } from '../repositories/financialSettings';
 import { getCpf, upsertCpf, putCpfSnapshot } from '../repositories/cpf';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 // CPF base interest rates (p.a.). Extra 1% on first $60k combined (capped $20k for OA):
 // under 55 → up to 5% p.a.; 55+ → up to 6% p.a. on first $30k, up to 5% on next $30k.
@@ -34,9 +35,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if (!auth.authenticated) return auth.redirect;
 
   const method = event.requestContext.http.method;
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   if (method === 'POST') {
@@ -269,6 +271,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'CPF — kopi-wealth',
       body,
       page: 'accounts-section',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,

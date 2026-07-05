@@ -16,14 +16,16 @@ import { clock } from '../lib/clock';
 import { calcReservedFunds, calcAvailableFunds } from '../lib/finance/reserved-funds';
 import { resolveTrackedValue, calcGoalProgress } from '../lib/finance/goal';
 import type { GoalMetrics } from '../lib/finance/goal';
+import { getAccountManagementUrl } from '../lib/account-management';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSession(event);
   if (!auth.authenticated) return auth.redirect;
 
-  const [user, settings] = await Promise.all([
+  const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
     getSettings(auth.session.sub),
+    getAccountManagementUrl(),
   ]);
 
   if (!settings) {
@@ -324,6 +326,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       title: 'Dashboard — kopi-wealth',
       body,
       page: 'dashboard',
+      accountManagementUrl,
       user: {
         sub: auth.session.sub,
         displayName: settings?.displayName,
