@@ -27,10 +27,10 @@ export async function queryByUser(sub: string, opts: QueryOptions = {}): Promise
       ? { ':pk': `EXPENSE_ITEM#${sub}`, ':before': opts.before }
       : { ':pk': `EXPENSE_ITEM#${sub}`, ':prefix': 'ITEM#' },
     ScanIndexForward: false,
-    Limit: limit + 1, // fetch one extra to detect if there are more
-    FilterExpression: 'attribute_not_exists(deletedAt)',
+    // Over-fetch to account for soft-deleted items consuming slots when filtered in JS
+    Limit: Math.max((limit + 1) * 2, 50),
   }));
-  const all = (res.Items ?? []) as ExpenseItem[];
+  const all = ((res.Items ?? []) as ExpenseItem[]).filter(i => !i.deletedAt);
   const hasMore = all.length > limit;
   const items = hasMore ? all.slice(0, limit) : all;
   const lastSK = hasMore ? items[items.length - 1].SK : undefined;
@@ -48,18 +48,19 @@ export async function updateExpenseItem(
   sub: string,
   date: string,
   id: string,
-  fields: { name: string; amount: number; notes?: string },
+  fields: { name: string; amount: number; notes?: string; exchangeRate?: number },
   updatedAt: string,
 ): Promise<void> {
   await ddb.send(new UpdateCommand({
     TableName: config.tableName,
     Key: { PK: `EXPENSE_ITEM#${sub}`, SK: `ITEM#${date}#${id}` },
-    UpdateExpression: 'SET #name = :name, amount = :amount, notes = :notes, updatedAt = :updatedAt',
+    UpdateExpression: 'SET #name = :name, amount = :amount, notes = :notes, exchangeRate = :exchangeRate, updatedAt = :updatedAt',
     ExpressionAttributeNames: { '#name': 'name' },
     ExpressionAttributeValues: {
       ':name': fields.name,
       ':amount': fields.amount,
       ':notes': fields.notes ?? null,
+      ':exchangeRate': fields.exchangeRate ?? null,
       ':updatedAt': updatedAt,
     },
   }));

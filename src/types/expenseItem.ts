@@ -8,6 +8,7 @@ export interface ExpenseItem {
   name: string;
   date: string; // YYYY-MM-DD
   notes?: string;
+  exchangeRate?: number; // 1 unit of expense currency = X units of user's base currency
   receiptKey?: string;
   lineItems?: string;
   createdAt: string;

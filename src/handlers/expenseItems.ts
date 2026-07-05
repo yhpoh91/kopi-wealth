@@ -79,6 +79,14 @@ function renderAddPanel(defaultCurrency: string, today: string, errorParam: stri
           <label>Date</label>
           <input name="date" type="date" value="${escapeHtml(today)}" max="${escapeHtml(today)}" required>
         </div>
+        <div class="form-group" id="add-fx-group" style="display:none">
+          <label>Exchange rate <span style="color:var(--color-text-muted);font-weight:400">(1 unit = X ${escapeHtml(defaultCurrency)})</span>
+            <button type="button" id="add-fx-refresh" onclick="addFetchRate()"
+              style="margin-left:0.4rem;background:none;border:none;color:var(--color-accent);cursor:pointer;font-size:0.8rem;padding:0">↻ Refresh</button>
+          </label>
+          <input name="exchangeRate" id="add-fx-input" type="number" step="0.000001" min="0.000001" placeholder="Auto-fetched">
+          <div id="add-fx-status" style="font-size:0.72rem;color:var(--color-text-muted);margin-top:0.2rem"></div>
+        </div>
         <div class="form-group">
           <label>Notes <span style="color:var(--color-text-muted);font-weight:400">(optional)</span></label>
           <input name="notes" type="text" maxlength="500" placeholder="">
@@ -89,7 +97,7 @@ function renderAddPanel(defaultCurrency: string, today: string, errorParam: stri
   </div>`;
 }
 
-function renderEditPanel(item: { id: string; name: string; amount: number; currency: string; date: string; notes?: string }): string {
+function renderEditPanel(item: { id: string; name: string; amount: number; currency: string; date: string; notes?: string; exchangeRate?: number }, defaultCurrency: string): string {
   return `
   <div class="panel-overlay" id="edit-overlay-${escapeHtml(item.id)}" onclick="closeEditPanel('${escapeHtml(item.id)}')">
     <div class="panel-sheet" onclick="event.stopPropagation()">
@@ -118,6 +126,16 @@ function renderEditPanel(item: { id: string; name: string; amount: number; curre
           <label>Date</label>
           <input name="editDate" type="date" value="${escapeHtml(item.date)}" max="${escapeHtml(clock.today())}">
         </div>
+        ${item.currency !== defaultCurrency ? `
+        <div class="form-group">
+          <label>Exchange rate <span style="color:var(--color-text-muted);font-weight:400">(1 ${escapeHtml(item.currency)} = X ${escapeHtml(defaultCurrency)})</span>
+            <button type="button" onclick="editFetchRate('${escapeHtml(item.id)}')"
+              style="margin-left:0.4rem;background:none;border:none;color:var(--color-accent);cursor:pointer;font-size:0.8rem;padding:0">↻ Refresh</button>
+          </label>
+          <input name="exchangeRate" id="edit-fx-${escapeHtml(item.id)}" type="number" step="0.000001" min="0.000001"
+            placeholder="Auto-fetched" value="${escapeHtml(String(item.exchangeRate ?? ''))}">
+          <div id="edit-fx-status-${escapeHtml(item.id)}" style="font-size:0.72rem;color:var(--color-text-muted);margin-top:0.2rem"></div>
+        </div>` : ''}
         <div class="form-group">
           <label>Notes</label>
           <input name="notes" type="text" maxlength="500" value="${escapeHtml(item.notes ?? '')}">
@@ -177,6 +195,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       const name = (params.name ?? '').trim().slice(0, 100);
       const amount = parseFloat(params.amount ?? '');
       const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
+      const rawExchangeRate = parseFloat(params.exchangeRate ?? '');
+      const exchangeRate = !isNaN(rawExchangeRate) && rawExchangeRate > 0 ? rawExchangeRate : undefined;
       // date can be edited; but currency cannot change
       const editDate = (params.editDate ?? params.date ?? '').trim();
       if (!name || isNaN(amount) || amount <= 0) return redirect('/expenses/items?error=invalid');
@@ -200,13 +220,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           date: dateToUse,
           name,
           amount,
+          exchangeRate,
           notes,
           updatedAt: now,
           deletedAt: undefined,
           deletedBy: undefined,
         });
       } else {
-        await updateExpenseItem(auth.session.sub, existing.date, itemId, { name, amount, notes }, now);
+        await updateExpenseItem(auth.session.sub, existing.date, itemId, { name, amount, notes, exchangeRate }, now);
       }
       return redirect('/expenses/items');
     }
@@ -220,6 +241,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const rawDate = (params.date ?? '').trim();
     const date = rawDate && rawDate <= today ? rawDate : rawDate > today ? null : today;
     const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
+    const rawExchangeRateCreate = parseFloat(params.exchangeRate ?? '');
+    const exchangeRateCreate = !isNaN(rawExchangeRateCreate) && rawExchangeRateCreate > 0 ? rawExchangeRateCreate : undefined;
 
     if (isNaN(amount) || amount <= 0 || !date) {
       return redirect('/expenses/items?error=invalid');
@@ -237,6 +260,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       name,
       date,
       notes,
+      exchangeRate: exchangeRateCreate,
       createdAt: now,
       updatedAt: now,
     });
@@ -279,9 +303,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
               style="flex-shrink:0;padding:0.2rem 0.3rem;background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:0.9rem;opacity:0.5;line-height:1;transition:opacity 0.12s"
               onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">✏️</button>
           </div>
-          <div style="font-size:1.1rem;font-weight:700;color:var(--color-accent);margin-top:0.5rem">${escapeHtml(item.currency)} ${escapeHtml(fmt(item.amount))}</div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--color-accent);margin-top:0.5rem">${escapeHtml(item.currency)} ${escapeHtml(fmt(item.amount))}${item.exchangeRate && item.currency !== currency ? ` <span style="font-size:0.75rem;font-weight:400;color:var(--color-text-muted)">≈ ${escapeHtml(currency)} ${escapeHtml(fmt(item.amount * item.exchangeRate))}</span>` : ''}</div>
         </div>
-        ${renderEditPanel(item)}
+        ${renderEditPanel(item, currency)}
       `).join('')}
     `).join('');
 
@@ -308,8 +332,60 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     </div>
     ${renderAddPanel(currency, today, errorParam)}
     <script>
+      var _baseCurrency = '${escapeHtml(currency)}';
       function openEditPanel(id){document.getElementById('edit-overlay-'+id).classList.add('open');}
       function closeEditPanel(id){document.getElementById('edit-overlay-'+id).classList.remove('open');}
+
+      // FX rate helpers
+      function _setFxStatus(el, msg){ if(el) el.textContent = msg; }
+      function _fetchRate(fromCurrency, date, inputEl, statusEl) {
+        if(!fromCurrency || fromCurrency === _baseCurrency) return;
+        _setFxStatus(statusEl, 'Fetching rate…');
+        fetch('https://api.frankfurter.app/' + date + '?from=' + fromCurrency + '&to=' + _baseCurrency)
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            var rate = d && d.rates && d.rates[_baseCurrency];
+            if(rate){ inputEl.value = rate; _setFxStatus(statusEl, 'Rate fetched for ' + date); }
+            else { _setFxStatus(statusEl, 'Rate not available'); }
+          })
+          .catch(function(){ _setFxStatus(statusEl, 'Could not fetch rate'); });
+      }
+
+      // Add form: show/hide FX group and auto-fetch on currency or date change
+      function _addFormOnChange() {
+        var sel = document.querySelector('#add-overlay [name="currency"]');
+        var dateEl = document.querySelector('#add-overlay [name="date"]');
+        var grp = document.getElementById('add-fx-group');
+        var inp = document.getElementById('add-fx-input');
+        var sta = document.getElementById('add-fx-status');
+        if(!sel || !dateEl || !grp) return;
+        var cur = sel.value;
+        if(cur && cur !== _baseCurrency){ grp.style.display=''; _fetchRate(cur, dateEl.value || '${escapeHtml(today)}', inp, sta); }
+        else { grp.style.display='none'; if(inp) inp.value=''; }
+      }
+      function addFetchRate() {
+        var sel = document.querySelector('#add-overlay [name="currency"]');
+        var dateEl = document.querySelector('#add-overlay [name="date"]');
+        var inp = document.getElementById('add-fx-input');
+        var sta = document.getElementById('add-fx-status');
+        if(sel && dateEl) _fetchRate(sel.value, dateEl.value, inp, sta);
+      }
+      (function(){
+        var sel = document.querySelector('#add-overlay [name="currency"]');
+        var dateEl = document.querySelector('#add-overlay [name="date"]');
+        if(sel) sel.addEventListener('change', _addFormOnChange);
+        if(dateEl) dateEl.addEventListener('change', _addFormOnChange);
+        _addFormOnChange();
+      })();
+
+      // Edit form: auto-fetch on open
+      function editFetchRate(id) {
+        var inp = document.getElementById('edit-fx-' + id);
+        var sta = document.getElementById('edit-fx-status-' + id);
+        var dateEl = document.querySelector('#edit-overlay-' + id + ' [name="editDate"]');
+        var cur = document.querySelector('#edit-overlay-' + id + ' input[disabled]');
+        if(inp && dateEl && cur) _fetchRate(cur.value, dateEl.value, inp, sta);
+      }
     </script>`;
 
   return {

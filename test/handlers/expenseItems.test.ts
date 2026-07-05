@@ -42,6 +42,9 @@ const expenseItem = {
   name: 'Lunch', date: '2026-07-03',
   createdAt: '2026-07-03T12:00:00.000Z', updatedAt: '2026-07-03T12:00:00.000Z',
 };
+const usdItem = {
+  ...expenseItem, id: 'id2', SK: 'ITEM#2026-07-03#id2', currency: 'USD', exchangeRate: 1.35,
+};
 
 function makeEvent(method: string, path: string, body?: string, opts: { base64?: boolean; query?: string } = {}) {
   return {
@@ -115,10 +118,24 @@ describe('GET /expenses/items', () => {
     expect((res as { body: string }).body).toContain('With colleague');
   });
 
+  it('shows FX rate field and base equivalent for non-base-currency item', async () => {
+    mockQueryByUser.mockResolvedValue({ items: [usdItem], lastSK: undefined });
+    const res = await handler(makeEvent('GET', '/expenses/items'), {} as never, {} as never);
+    const body = (res as { body: string }).body;
+    expect(body).toContain('exchangeRate');
+    expect(body).toContain('≈ SGD');
+  });
+
   it('passes before cursor to queryByUser', async () => {
     mockQueryByUser.mockResolvedValue({ items: [], lastSK: undefined });
     await handler(makeEvent('GET', '/expenses/items', undefined, { query: 'before=ITEM%232026-07-02%23id0' }), {} as never, {} as never);
     expect(mockQueryByUser).toHaveBeenCalledWith('sub1', expect.objectContaining({ before: 'ITEM#2026-07-02#id0' }));
+  });
+
+  it('handles undefined rawQueryString', async () => {
+    const event = { requestContext: { http: { method: 'GET' } }, rawPath: '/expenses/items', rawQueryString: undefined, body: undefined, isBase64Encoded: false, cookies: ['sid=s1'], headers: {} } as never;
+    const res = await handler(event, {} as never, {} as never);
+    expect(res).toMatchObject({ statusCode: 200 });
   });
 
   it('redirects to login when unauthenticated', async () => {
@@ -185,6 +202,16 @@ describe('POST /expenses/items (create)', () => {
     expect(mockPutExpenseItem).not.toHaveBeenCalled();
   });
 
+  it('stores exchangeRate when provided', async () => {
+    await handler(makeEvent('POST', '/expenses/items', 'amount=10&date=2026-07-03&currency=USD&exchangeRate=1.35'), {} as never, {} as never);
+    expect(mockPutExpenseItem).toHaveBeenCalledWith(expect.objectContaining({ exchangeRate: 1.35 }));
+  });
+
+  it('omits exchangeRate when not provided', async () => {
+    await handler(makeEvent('POST', '/expenses/items', 'amount=10&date=2026-07-03'), {} as never, {} as never);
+    expect(mockPutExpenseItem).toHaveBeenCalledWith(expect.objectContaining({ exchangeRate: undefined }));
+  });
+
   it('handles base64-encoded body', async () => {
     const res = await handler(makeEvent('POST', '/expenses/items', 'amount=10&date=2026-07-03', { base64: true }), {} as never, {} as never);
     expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/expenses/items' } });
@@ -219,6 +246,16 @@ describe('POST /expenses/items/:id (update)', () => {
     mockQueryByUser.mockResolvedValue({ items: [], lastSK: undefined });
     const res = await handler(makeEvent('POST', '/expenses/items/id99', 'name=X&amount=10'), {} as never, {} as never);
     expect(res).toMatchObject({ statusCode: 302, headers: { Location: '/expenses/items?error=not_found' } });
+  });
+
+  it('stores exchangeRate on update when provided', async () => {
+    await handler(makeEvent('POST', '/expenses/items/id1', 'name=Lunch&amount=12.5&date=2026-07-03&exchangeRate=1.35'), {} as never, {} as never);
+    expect(mockUpdateExpenseItem).toHaveBeenCalledWith('sub1', '2026-07-03', 'id1', expect.objectContaining({ exchangeRate: 1.35 }), expect.any(String));
+  });
+
+  it('omits exchangeRate on update when invalid', async () => {
+    await handler(makeEvent('POST', '/expenses/items/id1', 'name=Lunch&amount=12.5&date=2026-07-03&exchangeRate=abc'), {} as never, {} as never);
+    expect(mockUpdateExpenseItem).toHaveBeenCalledWith('sub1', '2026-07-03', 'id1', expect.objectContaining({ exchangeRate: undefined }), expect.any(String));
   });
 
   it('recreates item when date changes', async () => {
