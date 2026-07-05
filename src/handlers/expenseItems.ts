@@ -7,6 +7,7 @@ import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
 import { getExpenseItem, queryByUser, putExpenseItem, updateExpenseItem, softDeleteExpenseItem } from '../repositories/expenseItem';
 import { clock } from '../lib/clock';
+import type { ExpenseItem } from '../types/expenseItem';
 
 const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 
@@ -23,13 +24,13 @@ function autoName(): string {
   return `Expense at ${timePart}`;
 }
 
-function groupByDate(items: { date: string; id: string; name: string; amount: number; currency: string }[]): Array<{ date: string; label: string; items: typeof items }> {
+function groupByDate(items: ExpenseItem[]): Array<{ date: string; label: string; items: ExpenseItem[] }> {
   const today = clock.today();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const yStr = yesterday.toISOString().slice(0, 10);
 
-  const groups: Record<string, typeof items> = {};
+  const groups: Record<string, ExpenseItem[]> = {};
   for (const item of items) {
     if (!groups[item.date]) groups[item.date] = [];
     groups[item.date].push(item);
