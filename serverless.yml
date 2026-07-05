@@ -225,6 +225,31 @@ functions:
           method: POST
           path: /goals/{id}/delete
 
+  fxRate:
+    handler: src/handlers/fxRate.handler
+    name: wealth-${self:provider.stage}-fx-rate
+    events:
+      - httpApi:
+          method: GET
+          path: /fx-rate
+
+  expenseItems:
+    handler: src/handlers/expenseItems.handler
+    name: wealth-${self:provider.stage}-expense-items
+    events:
+      - httpApi:
+          method: GET
+          path: /expenses/items
+      - httpApi:
+          method: POST
+          path: /expenses/items
+      - httpApi:
+          method: POST
+          path: /expenses/items/{id}
+      - httpApi:
+          method: POST
+          path: /expenses/items/{id}/delete
+
   settings:
     handler: src/handlers/settings.handler
     name: wealth-${self:provider.stage}-settings

@@ -492,6 +492,76 @@ Syncing unconditionally on login means the avatar is always current without need
 
 ---
 
+## DynamoDB FilterExpression + Limit interaction — over-fetch and filter in JS
+
+**Problem:** `FilterExpression` is applied **after** `Limit` in DynamoDB. If you set `Limit: 31` and some items match the filter, DynamoDB first reads 31 items from storage, then filters — meaning soft-deleted items consume limit slots without appearing in results. `all.length` can be ≤ 30 even when more active items exist, so `hasMore` never triggers and "Load more" never appears.
+
+**Fix:** Remove `FilterExpression` from `QueryCommand`. Over-fetch (e.g. `Limit: Math.max((limit + 1) * 2, 50)`) to compensate for deleted items. Filter soft-deleted items in JavaScript after the response:
+
+```ts
+// ❌ Wrong — FilterExpression eats Limit slots; Load more never appears
+const res = await ddb.send(new QueryCommand({
+  Limit: limit + 1,
+  FilterExpression: 'attribute_not_exists(deletedAt)',
+}));
+
+// ✅ Correct — over-fetch, filter in JS
+const res = await ddb.send(new QueryCommand({
+  Limit: Math.max((limit + 1) * 2, 50),
+}));
+const all = ((res.Items ?? []) as Item[]).filter(i => !i.deletedAt);
+const hasMore = all.length > limit;
+```
+
+This works because historical delete rates are low. For entities with many deletions, increase the multiplier.
+
+---
+
+## JS-driven "Load more" — append without navigation
+
+**Pattern:** Instead of an `<a href="?before=...">` that replaces the entire page, use a server-side `?partial=1` mode that returns a JSON fragment, and a JS button that fetches and appends.
+
+**Server:** detect `qs.get('partial') === '1'` in the GET handler; return `{ itemsHtml: string, nextCursor: string | null }` instead of the full page. Reuses the exact same query and render logic.
+
+**Client:**
+```js
+function loadNextPage(cursor) {
+  var wrap = document.getElementById('exp-more-wrap');
+  var btn = wrap ? wrap.querySelector('button') : null;
+  if(btn) btn.textContent = 'Loading…';
+  fetch('/expenses/items?partial=1&before=' + encodeURIComponent(cursor))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.itemsHtml) {
+        var tmp = document.createElement('template');
+        tmp.innerHTML = d.itemsHtml;
+        document.querySelector('.exp-grid').appendChild(tmp.content);
+      }
+      if(d.nextCursor) { btn.textContent = 'Load more'; btn.onclick = function(){ loadNextPage(d.nextCursor); }; }
+      else if(wrap) { wrap.remove(); }
+    })
+    .catch(function(){ if(btn) btn.textContent = 'Load more'; });
+}
+```
+
+Use `<template>` for safe HTML insertion (preserves scripts/custom elements, doesn't trigger early image loads).
+
+**Test pitfall:** Don't test for element absence using strings that also appear in JS function bodies (e.g. `getElementById('exp-more-wrap')` is always in the script). Instead, check for the `onclick` attribute pattern that only exists in the conditional button: `expect(body).not.toMatch(/onclick="loadNextPage\(/)`.
+
+---
+
+## FX rates for per-item foreign-currency expenses
+
+**Pattern:** Historical exchange rates (at the date of the expense, not today's rate) via `getOrFetchHistoricalRate(from, to, date)` in `src/lib/fx.ts`. Cached in DynamoDB (`FXRATE#{from}` / `FXRATE#{date}`) with a 30-day TTL — historical rates never change.
+
+**Server endpoint:** `GET /fx-rate?from=USD&to=SGD&date=2026-07-03` — authenticated, validates params (must be known currencies + YYYY-MM-DD date), returns `{ from, to, date, rate }`. Delegates to `getOrFetchHistoricalRate` which uses the same DDB cache as `getOrFetchRates`.
+
+**Client:** Auto-fetches on currency or date change in the Add form; available as ↻ Refresh in the Edit form. User can manually edit the field. Calling the server endpoint means the browser never touches frankfurter.app directly — all FX calls go through the server-side cache.
+
+**Why historical:** The exchange rate should reflect the day the expense was incurred, not today. If the user's base currency changes later, the stored `exchangeRate` on the item preserves the original conversion without retroactive distortion.
+
+---
+
 ## Validation Pattern (POST handlers)
 
 Redirect back with error params on validation failure so the user sees what went wrong:

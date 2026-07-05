@@ -114,14 +114,14 @@ User list + promote/demote. Feature flag editor (enabled, rolloutPercent, per-us
 
 ---
 
-## M16 — Expense Items: Core CRUD ⬜
+## M16 — Expense Items: Core CRUD ✅
 
-Per-item expense tracking. Manual text entry: amount, optional name (auto-generated from timestamp if blank), date (defaults to today, accepts past dates for backfill), currency, notes. Feed-style list grouped by date. Soft delete. No photo yet.
+Per-item expense tracking. Manual text entry: amount, optional name (auto-generated from timestamp if blank), date (defaults to today, accepts past dates for backfill), currency, optional notes, optional exchange rate (auto-populated from `/fx-rate` API for non-base-currency items, user-editable). Feed-style list grouped by date (Today / Yesterday / date). Soft delete. JS-driven "Load more" appends next page without navigation. No photo yet.
 
 Design: [`docs/M16-expense-items-crud.md`](docs/M16-expense-items-crud.md)
 
 **New entity:** `ExpenseItem` (`EXPENSE_ITEM#{sub}` / `ITEM#{date}#{id}`)
-**Routes:** `GET /expenses/items`, `POST /expenses/items`, `POST /expenses/items/{id}`, `POST /expenses/items/{id}/delete`
+**Routes:** `GET /expenses/items`, `POST /expenses/items`, `POST /expenses/items/{id}`, `POST /expenses/items/{id}/delete`, `GET /fx-rate` (shared FX endpoint)
 
 ---
 
