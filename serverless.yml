@@ -129,22 +129,38 @@ functions:
           method: POST
           path: /cpf
 
+  accountsHub:
+    handler: src/handlers/accountsHub.handler
+    name: wealth-${self:provider.stage}-accounts-hub
+    events:
+      - httpApi:
+          method: GET
+          path: /accounts
+
+  cashFlowHub:
+    handler: src/handlers/cashFlowHub.handler
+    name: wealth-${self:provider.stage}-cash-flow-hub
+    events:
+      - httpApi:
+          method: GET
+          path: /cash-flow
+
   accounts:
     handler: src/handlers/accounts.handler
     name: wealth-${self:provider.stage}-accounts
     events:
       - httpApi:
           method: GET
-          path: /accounts
+          path: /cash-bank
       - httpApi:
           method: POST
-          path: /accounts
+          path: /cash-bank
       - httpApi:
           method: POST
-          path: /accounts/{id}
+          path: /cash-bank/{id}
       - httpApi:
           method: POST
-          path: /accounts/{id}/delete
+          path: /cash-bank/{id}/delete
 
   investments:
     handler: src/handlers/investments.handler

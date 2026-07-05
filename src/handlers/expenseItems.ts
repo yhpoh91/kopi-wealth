@@ -437,7 +437,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     body: renderPage({
       title: 'Expenses',
       body,
-      page: 'expenses',
+      page: 'cash-flow',
       user: {
         sub: user?.sub ?? auth.session.sub,
         displayName: user?.name,
