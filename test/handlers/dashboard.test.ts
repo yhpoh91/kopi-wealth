@@ -13,6 +13,7 @@ vi.mock('../../src/repositories/liability', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/receivable', () => ({ queryByUser: vi.fn() }));
 vi.mock('../../src/repositories/goal', () => ({ queryByUser: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../src/repositories/expenseItem', () => ({ queryByPeriod: vi.fn() }));
+vi.mock('../../src/repositories/income', () => ({ queryIncomeByUser: vi.fn() }));
 vi.mock('../../src/lib/account-management', () => ({ getAccountManagementUrl: vi.fn() }));
 vi.mock('../../src/lib/clock', () => ({
   clock: { nowIso: vi.fn(() => '2026-06-29T00:00:00.000Z'), today: vi.fn(() => '2026-06-29') },
@@ -33,6 +34,7 @@ import { queryByUser as queryLiabilities } from '../../src/repositories/liabilit
 import { queryByUser as queryReceivables } from '../../src/repositories/receivable';
 import { queryByUser as queryGoals } from '../../src/repositories/goal';
 import { queryByPeriod as queryExpensesByPeriod } from '../../src/repositories/expenseItem';
+import { queryIncomeByUser } from '../../src/repositories/income';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 import { getAccountManagementUrl } from '../../src/lib/account-management';
 
@@ -47,6 +49,7 @@ const mockQueryLiabilities = vi.mocked(queryLiabilities);
 const mockQueryReceivables = vi.mocked(queryReceivables);
 const mockQueryGoals = vi.mocked(queryGoals);
 const mockQueryExpensesByPeriod = vi.mocked(queryExpensesByPeriod);
+const mockQueryIncomeByUser = vi.mocked(queryIncomeByUser);
 const mockGetAccountManagementUrl = vi.mocked(getAccountManagementUrl);
 const mockGetOrFetchRates = vi.mocked(getOrFetchRates);
 const mockConvertAmount = vi.mocked(convertAmount);
@@ -69,6 +72,7 @@ beforeEach(() => {
   mockQueryLiabilities.mockResolvedValue([]);
   mockQueryReceivables.mockResolvedValue([]);
   mockQueryExpensesByPeriod.mockResolvedValue([]);
+  mockQueryIncomeByUser.mockResolvedValue([]);
   mockGetAccountManagementUrl.mockResolvedValue('');
   mockGetOrFetchRates.mockResolvedValue({ rates: { MYR: 3.45 }, date: '2026-06-28' });
   mockConvertAmount.mockImplementation((amount, from, to, rates) => {
@@ -429,6 +433,7 @@ describe('GET / — goals section', () => {
 
 describe('GET / — cash flow section', () => {
   const expenseItem = { PK: 'EXPENSE_ITEM#sub1', SK: 'ITEM#2026-06-15#e1', id: 'e1', sub: 'sub1', name: 'Lunch', amount: 12.50, currency: 'SGD', date: '2026-06-15', createdAt: '2026-06-15T12:00:00.000Z', updatedAt: '2026-06-15T12:00:00.000Z' };
+  const salarySource = { PK: 'INCOME#sub1', SK: 'INCOME#id1', GSI1PK: 'USER#sub1', GSI1SK: 'INCOME#2026-01-01T00:00:00.000Z', id: 'id1', sub: 'sub1', type: 'salary' as const, name: 'Job', amount: 5000, currency: 'SGD', frequency: 'monthly' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
 
   it('shows cash flow section header', async () => {
     const res = await handler({} as never, {} as never, () => {});
@@ -467,6 +472,38 @@ describe('GET / — cash flow section', () => {
   it('shows month label in cash flow header', async () => {
     const res = await handler({} as never, {} as never, () => {});
     expect((res as { body: string }).body).toContain('Jun');
+  });
+
+  it('shows no income sources message when no active income', async () => {
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('No income sources');
+  });
+
+  it('shows income monthly estimate when active sources exist', async () => {
+    mockQueryIncomeByUser.mockResolvedValue([salarySource]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('5,000.00');
+  });
+
+  it('uses exchangeRate for foreign currency income', async () => {
+    const usdSource = { ...salarySource, currency: 'USD', amount: 100, exchangeRate: 1.35 };
+    mockQueryIncomeByUser.mockResolvedValue([usdSource]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('135.00');
+  });
+
+  it('marks partial when income source has no exchangeRate for foreign currency', async () => {
+    const usdSource = { ...salarySource, currency: 'USD', amount: 100 };
+    mockQueryIncomeByUser.mockResolvedValue([usdSource]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('partial');
+  });
+
+  it('excludes ended income sources from estimate', async () => {
+    const endedSource = { ...salarySource, endDate: '2026-01-31' };
+    mockQueryIncomeByUser.mockResolvedValue([endedSource]);
+    const res = await handler({} as never, {} as never, () => {});
+    expect((res as { body: string }).body).toContain('No income sources');
   });
 });
 

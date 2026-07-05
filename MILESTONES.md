@@ -120,7 +120,7 @@ Port `src/lib/account-management.ts` from kopi-health. Dynamically fetches `acco
 
 ---
 
-## M-Income — Income Sources ⬜
+## M-Income — Income Sources ✅
 
 Track known, predictable recurring income streams (salary, rental, fixed retainer). Ad-hoc income (bonuses, dividends) is out of scope — those are captured as account balance updates. Income is used for budgeting and Cash Flow comparisons.
 
@@ -129,15 +129,15 @@ Design: [`docs/M-Income-income-sources.md`](docs/M-Income-income-sources.md)
 **New entity:** `IncomeSource` (`INCOME#{sub}` / `INCOME#{id}`)
 **New routes:** `GET /income`, `POST /income`, `POST /income/{id}`, `POST /income/{id}/delete`
 
-### M-Income.A — Entity & Repository ⬜
+### M-Income.A — Entity & Repository ✅
 
 `IncomeSource` type, `src/repositories/income.ts`. `toMonthlyAmount` helper (monthly / quarterly÷3 / annual÷12). No handler yet.
 
-### M-Income.B — CRUD Handler & UI ⬜
+### M-Income.B — CRUD Handler & UI ✅
 
 `src/handlers/income.ts`. Feed grouped by type (salary, rental, other, ended). Add/Edit forms: minimal inputs, optional name, currency+amount on same row, FX rate for non-base currency (reuses `/fx-rate`). Soft delete. Monthly estimate shown at top.
 
-### M-Income.C — Cash Flow Hub Integration ⬜
+### M-Income.C — Cash Flow Hub Integration ✅
 
 Income card added to Accounts hub and Cash Flow hub. Monthly estimate visible from both hub pages.
 

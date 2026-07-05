@@ -194,6 +194,33 @@
     .panel-row:hover { color: var(--color-accent); }
     .panel-row.danger { color: var(--color-error); }
     .panel-row.danger:hover { color: var(--color-error); opacity: 0.8; }
+    textarea {
+      background: var(--color-input-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 0.5rem;
+      padding: 0.65rem 0.75rem;
+      color: var(--color-text);
+      font-size: 0.95rem;
+      width: 100%;
+      resize: vertical;
+      font-family: inherit;
+      color-scheme: inherit;
+    }
+    textarea:focus { outline: none; border-color: var(--color-accent); }
+    .btn-danger {
+      background: transparent;
+      color: var(--color-error);
+      border: 1px solid var(--color-error);
+      border-radius: 0.5rem;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.12s;
+      width: 100%;
+    }
+    .btn-danger:hover { opacity: 0.8; }
+    .panel-scroll { overflow-y: auto; max-height: 80dvh; padding-bottom: 0.5rem; }
   </style>
 </head>
 <body>

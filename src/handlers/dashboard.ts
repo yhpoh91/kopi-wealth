@@ -10,6 +10,8 @@ import { queryByUser as queryLiabilities } from '../repositories/liability';
 import { queryByUser as queryReceivables } from '../repositories/receivable';
 import { queryByUser as queryGoals } from '../repositories/goal';
 import { queryByPeriod as queryExpensesByPeriod } from '../repositories/expenseItem';
+import { queryIncomeByUser } from '../repositories/income';
+import { toMonthlyAmount } from '../types/income';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { escapeHtml } from '../lib/html';
 import { clock } from '../lib/clock';
@@ -46,7 +48,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const today = clock.today();
   const period = today.slice(0, 7); // YYYY-MM
 
-  const [accounts, investments, cpf, liabilities, receivables, goals, expenseItems] = await Promise.all([
+  const [accounts, investments, cpf, liabilities, receivables, goals, expenseItems, incomeSources] = await Promise.all([
     queryByUser(auth.session.sub),
     queryInvestments(auth.session.sub),
     getCpf(auth.session.sub),
@@ -54,6 +56,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     queryReceivables(auth.session.sub),
     queryGoals(auth.session.sub),
     queryExpensesByPeriod(auth.session.sub, period),
+    queryIncomeByUser(auth.session.sub),
   ]);
 
   // Gather all foreign currencies needed
@@ -182,6 +185,17 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return availableSavings! + availableInvestments!;
   })();
 
+  // Income monthly total (active sources only — no endDate or endDate >= today)
+  const activeIncome = incomeSources.filter((s) => !s.endDate || s.endDate >= today);
+  let incomeMonthly = 0;
+  let incomePartial = false;
+  for (const s of activeIncome) {
+    const monthly = toMonthlyAmount(s);
+    if (s.currency === currency) { incomeMonthly += monthly; }
+    else if (s.exchangeRate != null) { incomeMonthly += monthly * s.exchangeRate; }
+    else { incomePartial = true; }
+  }
+
   // Expense items this month — sum in base currency
   let expensesTotal = 0;
   let expensesPartial = false;
@@ -272,9 +286,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const monthLabel = monthNames[parseInt(period.slice(5, 7), 10) - 1] ?? period;
 
   const hasExpenses = expenseItems.length > 0;
+  const hasIncome = activeIncome.length > 0;
   const cashFlowSection = `<div style="margin-bottom:1rem">
     <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-text-muted);margin-bottom:0.5rem">Cash Flow — ${escapeHtml(monthLabel)}</div>
     <div class="card" style="padding:0.75rem 1rem">
+      ${hasIncome
+        ? `${metricRow('Est. Income / mo', incomeMonthly, true, incomePartial)}`
+        : `<div style="font-size:0.85rem;color:var(--color-text-muted);padding:0.25rem 0">No income sources. <a href="/income" style="color:var(--color-accent)">Add one →</a></div>`
+      }
       ${hasExpenses
         ? `${metricRow('Expenses', expensesTotal, true, expensesPartial, 'var(--color-error)')}`
         : `<div style="font-size:0.85rem;color:var(--color-text-muted);text-align:center;padding:0.25rem 0">No expenses recorded this month. <a href="/expenses/items" style="color:var(--color-accent)">Add one →</a></div>`

@@ -188,7 +188,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   <div class="hub-grid">
     ${planCard('/goals', '🎯', 'Goals', activeGoals.length === 1 ? '1 active' : `${activeGoals.length} active`)}
     ${planCard('/reserved-funds', '🛡️', 'Reserved Funds', settings?.ef1SavingsFixed || settings?.ef1SavingsPct ? 'configured' : 'not set up')}
-  </div>`;
+  </div>
+
+  `;
 
   const displayName = settings?.displayName ?? user?.name ?? user?.email ?? auth.session.sub;
 
