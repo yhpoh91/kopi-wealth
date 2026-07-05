@@ -89,16 +89,32 @@ describe('GET /expenses/items', () => {
     expect((res as { body: string }).body).toContain('Today');
   });
 
-  it('shows Load more link when lastSK is set', async () => {
+  it('shows Load more button when lastSK is set', async () => {
     mockQueryByUser.mockResolvedValue({ items: [expenseItem], lastSK: 'ITEM#2026-07-02#id0' });
     const res = await handler(makeEvent('GET', '/expenses/items'), {} as never, {} as never);
-    expect((res as { body: string }).body).toContain('Load more');
+    expect((res as { body: string }).body).toContain('exp-more-wrap');
   });
 
-  it('does not show Load more when no lastSK', async () => {
+  it('does not show Load more button when no lastSK', async () => {
     mockQueryByUser.mockResolvedValue({ items: [expenseItem], lastSK: undefined });
     const res = await handler(makeEvent('GET', '/expenses/items'), {} as never, {} as never);
-    expect((res as { body: string }).body).not.toContain('Load more');
+    expect((res as { body: string }).body).not.toMatch(/onclick="loadNextPage\(/);
+  });
+
+  it('returns JSON fragment for partial=1 with more items', async () => {
+    mockQueryByUser.mockResolvedValue({ items: [expenseItem], lastSK: 'ITEM#2026-07-02#id0' });
+    const res = await handler(makeEvent('GET', '/expenses/items', undefined, { query: 'partial=1&before=ITEM%232026-07-02%23id0' }), {} as never, {} as never);
+    expect(res).toMatchObject({ statusCode: 200, headers: { 'Content-Type': 'application/json' } });
+    const body = JSON.parse((res as { body: string }).body);
+    expect(body.itemsHtml).toContain('Lunch');
+    expect(body.nextCursor).toBe('ITEM#2026-07-02#id0');
+  });
+
+  it('returns JSON fragment for partial=1 with no more items', async () => {
+    mockQueryByUser.mockResolvedValue({ items: [expenseItem], lastSK: undefined });
+    const res = await handler(makeEvent('GET', '/expenses/items', undefined, { query: 'partial=1' }), {} as never, {} as never);
+    const body = JSON.parse((res as { body: string }).body);
+    expect(body.nextCursor).toBeNull();
   });
 
   it('shows error banner when ?error=invalid present', async () => {

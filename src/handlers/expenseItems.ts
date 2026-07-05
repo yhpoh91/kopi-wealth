@@ -271,6 +271,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const qs = new URLSearchParams(event.rawQueryString ?? '');
   const beforeCursor = qs.get('before') || undefined;
   const errorParam = qs.get('error');
+  const partial = qs.get('partial') === '1';
   const today = clock.today();
 
   const { items, lastSK } = await queryByUser(auth.session.sub, { limit: 30, before: beforeCursor });
@@ -282,13 +283,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       </div>`
     : '';
 
-  const itemCards = groups.length === 0
-    ? `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--color-text-muted);padding:2rem 1rem">
-        <div style="font-size:2rem;margin-bottom:0.5rem">💸</div>
-        <div style="font-weight:600;margin-bottom:0.25rem">No expenses yet</div>
-        <div style="font-size:0.875rem">Tap + Add to log your first one.</div>
-      </div>`
-    : groups.map(({ label, items: groupItems }) => `
+  const renderGroups = (grps: ReturnType<typeof groupByDate>) =>
+    grps.map(({ label, items: groupItems }) => `
       <div style="grid-column:1/-1;font-size:0.75rem;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:0.75rem;margin-bottom:0.25rem">
         ${escapeHtml(label)}
       </div>
@@ -309,10 +305,32 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       `).join('')}
     `).join('');
 
+  // Partial mode: return JSON fragment for JS-driven "Load more" appending
+  if (partial) {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        itemsHtml: renderGroups(groups),
+        nextCursor: lastSK ?? null,
+      }),
+    };
+  }
+
+  const itemCards = groups.length === 0
+    ? `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--color-text-muted);padding:2rem 1rem">
+        <div style="font-size:2rem;margin-bottom:0.5rem">💸</div>
+        <div style="font-weight:600;margin-bottom:0.25rem">No expenses yet</div>
+        <div style="font-size:0.875rem">Tap + Add to log your first one.</div>
+      </div>`
+    : renderGroups(groups);
+
   const loadMore = lastSK
-    ? `<div style="text-align:center;margin-top:1rem">
-        <a href="/expenses/items?before=${encodeURIComponent(lastSK)}"
-          style="color:var(--color-accent);font-size:0.875rem;text-decoration:none">Load more</a>
+    ? `<div id="exp-more-wrap" style="text-align:center;margin-top:1rem">
+        <button type="button" onclick="loadNextPage('${escapeHtml(lastSK)}')"
+          style="background:none;border:none;color:var(--color-accent);font-size:0.875rem;cursor:pointer;padding:0.5rem 1rem">
+          Load more
+        </button>
       </div>`
     : '';
 
@@ -376,6 +394,32 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         if(dateEl) dateEl.addEventListener('change', _addFormOnChange);
         _addFormOnChange();
       })();
+
+      // Append next page of items without navigating away
+      function loadNextPage(cursor) {
+        var wrap = document.getElementById('exp-more-wrap');
+        var btn = wrap ? wrap.querySelector('button') : null;
+        var grid = document.querySelector('.exp-grid');
+        if(btn) btn.textContent = 'Loading…';
+        fetch('/expenses/items?partial=1&before=' + encodeURIComponent(cursor))
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if(d.itemsHtml) {
+              var tmp = document.createElement('template');
+              tmp.innerHTML = d.itemsHtml;
+              grid.appendChild(tmp.content);
+            }
+            if(d.nextCursor && wrap) {
+              btn.textContent = 'Load more';
+              btn.onclick = function(){ loadNextPage(d.nextCursor); };
+            } else if(wrap) {
+              wrap.remove();
+            }
+          })
+          .catch(function(){
+            if(btn) btn.textContent = 'Load more';
+          });
+      }
 
       // Edit form: auto-fetch on open
       function editFetchRate(id) {
