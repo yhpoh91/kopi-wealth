@@ -188,16 +188,16 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         </div>`
       : '';
     return `
-    <div id="edit-panel-${escapeHtml(s.id)}" class="bottom-sheet" style="display:none">
-      <div class="bottom-sheet-content">
-        <div class="bottom-sheet-header">
-          <span>Edit Income Source</span>
-          <button onclick="closeEdit('${escapeHtml(s.id)}')" class="panel-close">✕</button>
+    <div class="panel-overlay" id="edit-panel-${escapeHtml(s.id)}" onclick="closeEdit('${escapeHtml(s.id)}')">
+      <div class="panel-sheet panel-scroll" onclick="event.stopPropagation()">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+          <div style="font-weight:600;font-size:1rem">Edit Income Source</div>
+          <button type="button" onclick="closeEdit('${escapeHtml(s.id)}')" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
         </div>
         <form method="POST" action="/income/${escapeHtml(s.id)}">
           <div class="form-group">
             <label>Type</label>
-            <select name="type" onchange="syncEditType('${escapeHtml(s.id)}')">${typeOptions}</select>
+            <select name="type">${typeOptions}</select>
           </div>
           <div class="form-group">
             <label>Name <span style="color:var(--color-text-muted);font-size:0.8rem">(optional)</span></label>
@@ -231,7 +231,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           <button type="submit" class="btn-primary" style="width:100%;margin-bottom:0.5rem">Save Changes</button>
         </form>
         <form method="POST" action="/income/${escapeHtml(s.id)}/delete" onsubmit="return confirm('Delete this income source?')">
-          <button type="submit" class="btn-danger" style="width:100%">Delete</button>
+          <button type="submit" class="btn-danger">Delete</button>
         </form>
       </div>
     </div>`;
@@ -242,11 +242,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const freqOptionsAdd = FREQUENCIES.map(f => `<option value="${f}">${escapeHtml(FREQUENCY_LABELS[f])}</option>`).join('');
 
   const addPanel = `
-  <div id="add-panel" class="bottom-sheet" style="display:none">
-    <div class="bottom-sheet-content">
-      <div class="bottom-sheet-header">
-        <span>Add Income Source</span>
-        <button onclick="closeAdd()" class="panel-close">✕</button>
+  <div class="panel-overlay" id="add-panel" onclick="closeAdd()">
+    <div class="panel-sheet panel-scroll" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+        <div style="font-weight:600;font-size:1rem">Add Income Source</div>
+        <button type="button" onclick="closeAdd()" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:1.1rem;padding:0.25rem">✕</button>
       </div>
       <form method="POST" action="/income">
         <div class="form-group">
@@ -316,10 +316,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   <script>
     var _baseCurrency = '${escapeHtml(currency)}';
-    function openAdd(){ document.getElementById('add-panel').style.display='flex'; }
-    function closeAdd(){ document.getElementById('add-panel').style.display='none'; }
-    function openEdit(id){ document.getElementById('edit-panel-'+id).style.display='flex'; }
-    function closeEdit(id){ document.getElementById('edit-panel-'+id).style.display='none'; }
+    function openAdd(){ document.getElementById('add-panel').classList.add('open'); }
+    function closeAdd(){ document.getElementById('add-panel').classList.remove('open'); }
+    function openEdit(id){ document.getElementById('edit-panel-'+id).classList.add('open'); }
+    function closeEdit(id){ document.getElementById('edit-panel-'+id).classList.remove('open'); }
 
     function _fetchRate(from, to, inputEl, statusEl, labelEl) {
       if(!from || from === to){ if(labelEl) labelEl.textContent=''; return; }
