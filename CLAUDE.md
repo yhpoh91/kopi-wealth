@@ -51,7 +51,10 @@ npm run migrate:check:prod
 
 ## Security Invariants
 
-- Sessions use HttpOnly cookies (`sid`); DDB records with `ttl` for auto-expiry (24 h).
+- Web sessions use HttpOnly cookies (`sid`); DDB records with `ttl` for auto-expiry (24 h).
+- Mobile sessions use `Authorization: Bearer <opaque token>`; same `SESSION#` record with `platform: 'mobile'`, 60-day `ttl` renewed (at most daily) while in use, expiry also checked on read. The SSO refresh token is stored only so `POST /v1/auth/logout` can revoke it, and is removed on soft delete.
+- Every authenticated handler calls `requireSessionOrBearer()` (`src/lib/auth-middleware.ts`): Bearer first, then the `sid` cookie. A failed Bearer gets a JSON 401; a failed cookie gets the login redirect.
+- The mobile app never receives the SSO issuer, client id, client secret or SSO tokens. Allowed app redirect URIs: `kopiwealth://callback`, `kopiwealthpreview://callback` (`ALLOWED_APP_REDIRECT_URIS` in `src/lib/auth.ts`); each must be registered on the stage's kopi-sso client.
 - Secrets Manager paths: `wealth/${stage}/<secret-name>`.
 - No stack traces in error responses.
 - Admin role checked server-side on every admin request.
@@ -64,7 +67,7 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 | Entity | PK | SK | GSI1PK | GSI1SK |
 |---|---|---|---|---|
 | User | `USER#{sub}` | `USER#{sub}` | `ALL_USERS` | `USER#{sub}` |
-| Session | `SESSION#{id}` | `SESSION#{id}` | — | — |
+| Session (web + mobile) | `SESSION#{id}` | `SESSION#{id}` | — | — |
 | FinancialSettings | `SETTINGS#{sub}` | `SETTINGS` | — | — |
 | Account | `ACCOUNT#{sub}` | `ACCOUNT#{id}` | `USER#{sub}` | `ACCOUNT#{createdAt}` |
 | AccountSnapshot | `ACCT_SNAP#{accountId}` | `SNAP#{recordedAt}#{uuid}` | — | — |
@@ -100,6 +103,14 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 
 `verifyIdToken` extracts `sub`, `email`, `name`, and `picture` from the SSO ID token. The callback handler saves all four and syncs them unconditionally on every login.
 
+## Mobile Auth Routes (`src/handlers/v1/auth/`)
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/auth/authorize` | Stateless: validates `code_challenge` (S256 only), `state`, `redirect_uri` (allowlist); forwards `prompt` only for `login`/`select_account`; 302s to kopi-sso. |
+| `POST /v1/auth/token` | JSON `{code, codeVerifier, redirectUri}` → code exchange with the secret from `wealth/{stage}/sso-client-secret`, same JIT provisioning as the web callback (`src/lib/provision-user.ts`) → `{token, expiresAt, user}`. |
+| `POST /v1/auth/logout` | Soft-deletes the Bearer's own session and revokes its SSO refresh token (best effort). Always `200 {ok:true}`. |
+
 ## Layout / Rendering
 
 `renderPage(opts: LayoutOptions)` — all authenticated page handlers must pass:
@@ -120,8 +131,8 @@ kopi-wealth/
 ├── src/
 │   ├── config/          # Stage-aware config + secretName() helper
 │   ├── types/           # Shared DynamoDB record types (one file per entity)
-│   ├── lib/             # ddb.ts, auth.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts
-│   ├── handlers/        # Lambda handlers (one file per route)
+│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts
+│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in)
 │   ├── repositories/    # DynamoDB access layers (one file per entity)
 │   ├── templates/       # Server-rendered HTML (excluded from coverage)
 │   ├── migrations/      # Migration scripts (ordered, idempotent)

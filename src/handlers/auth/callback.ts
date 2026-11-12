@@ -2,10 +2,8 @@ import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { randomUUID } from 'crypto';
 import { exchangeCode, verifyIdToken } from '../../lib/auth';
 import { parseCookies, setCookieHeader, clearCookieHeader } from '../../lib/session';
-import { getUser, putUser } from '../../repositories/user';
 import { putSession } from '../../repositories/session';
-import { queryByUser as queryGoals } from '../../repositories/goal';
-import { seedDefaultGoals } from '../goals';
+import { provisionUser, type IdTokenClaims } from '../../lib/provision-user';
 import { getSecret } from '../../lib/secrets';
 import { config, secretName } from '../../config';
 import { clock } from '../../lib/clock';
@@ -46,7 +44,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return { statusCode: 400, body: 'Token exchange failed' };
   }
 
-  let claims: { sub: string; email: string; name?: string; picture?: string };
+  let claims: IdTokenClaims;
   try {
     claims = await verifyIdToken(idToken);
   } catch {
@@ -55,38 +53,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const now = clock.nowIso();
 
-  let user = await getUser(claims.sub);
-  const isNewUser = !user;
-  if (!user) {
-    user = {
-      PK: `USER#${claims.sub}`,
-      SK: `USER#${claims.sub}`,
-      GSI1PK: 'ALL_USERS',
-      GSI1SK: `USER#${claims.sub}`,
-      sub: claims.sub,
-      email: claims.email,
-      name: claims.name,
-      picture: claims.picture,
-      createdAt: now,
-      updatedAt: now,
-      lastSeenAt: now,
-    };
-  } else {
-    user = { ...user, lastSeenAt: now, updatedAt: now };
-    if (claims.email !== user.email) user = { ...user, email: claims.email };
-    if (claims.name !== undefined) user = { ...user, name: claims.name };
-    user = { ...user, picture: claims.picture };
-  }
-  await putUser(user);
-
-  if (isNewUser) {
-    await seedDefaultGoals(claims.sub, now);
-  } else {
-    const existingGoals = await queryGoals(claims.sub);
-    if (existingGoals.length === 0) {
-      await seedDefaultGoals(claims.sub, now);
-    }
-  }
+  await provisionUser(claims, now);
 
   const sessionId = randomUUID();
   const ttl = Math.floor(clock.nowMs() / 1000) + 86400;

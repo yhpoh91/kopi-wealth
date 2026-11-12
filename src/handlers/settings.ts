@@ -1,5 +1,5 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { requireSession } from '../lib/auth-middleware';
+import { requireSessionOrBearer } from '../lib/auth-middleware';
 import { renderPage } from '../lib/layout';
 import { getUser } from '../repositories/user';
 import { getSettings, putSettings } from '../repositories/financialSettings';
@@ -11,8 +11,8 @@ const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 const TIMEZONES = ['Asia/Singapore', 'Asia/Kuala_Lumpur', 'Australia/Sydney', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo', 'Asia/Hong_Kong'];
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const auth = await requireSession(event);
-  if (!auth.authenticated) return auth.redirect;
+  const auth = await requireSessionOrBearer(event);
+  if (!auth.authenticated) return auth.response;
 
   const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
