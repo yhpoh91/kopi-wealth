@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/lib/auth-middleware', () => ({ requireSession: vi.fn() }));
+vi.mock('../../src/lib/auth-middleware', () => ({ requireSessionOrBearer: vi.fn() }));
 vi.mock('../../src/repositories/user', () => ({ getUser: vi.fn() }));
 vi.mock('../../src/repositories/financialSettings', () => ({
   getSettings: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('../../src/lib/fx', () => ({
 }));
 
 import { handler } from '../../src/handlers/dashboard';
-import { requireSession } from '../../src/lib/auth-middleware';
+import { requireSessionOrBearer } from '../../src/lib/auth-middleware';
 import { getUser } from '../../src/repositories/user';
 import { getSettings, putSettings } from '../../src/repositories/financialSettings';
 import { queryByUser } from '../../src/repositories/account';
@@ -36,7 +36,7 @@ import { queryByPeriod as queryExpensesByPeriod } from '../../src/repositories/e
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 import { getAccountManagementUrl } from '../../src/lib/account-management';
 
-const mockRequireSession = vi.mocked(requireSession);
+const mockRequireSession = vi.mocked(requireSessionOrBearer);
 const mockGetUser = vi.mocked(getUser);
 const mockGetSettings = vi.mocked(getSettings);
 const mockPutSettings = vi.mocked(putSettings);
@@ -80,7 +80,7 @@ beforeEach(() => {
 
 describe('GET /', () => {
   it('redirects to login when unauthenticated', async () => {
-    mockRequireSession.mockResolvedValue({ authenticated: false, redirect: { statusCode: 302, headers: { Location: '/auth/login' }, cookies: [], body: '' } });
+    mockRequireSession.mockResolvedValue({ authenticated: false, response: { statusCode: 302, headers: { Location: '/auth/login' }, cookies: [], body: '' } });
     const res = await handler({} as never, {} as never, () => {});
     expect(res).toMatchObject({ statusCode: 302 });
   });

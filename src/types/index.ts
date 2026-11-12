@@ -22,6 +22,8 @@ export interface SessionRecord {
   sub: string;
   createdAt: string;
   ttl: number;
+  platform?: 'mobile';   // absent = web cookie session (24 h); 'mobile' = Bearer session (60 d, sliding)
+  refreshToken?: string; // mobile only: SSO refresh token, kept solely so logout can revoke it
   deletedAt?: string;
   deletedBy?: string;
 }

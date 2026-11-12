@@ -120,6 +120,21 @@ Port `src/lib/account-management.ts` from kopi-health. Dynamically fetches `acco
 
 ---
 
+## M-Mobile — Mobile App Backend 🚧
+
+Backend for the Kopi Wealth mobile app (kopitech-lab/kopi-wealth-mobile). Follows the kopi-app standard, "Mobile sign-in (proxied through the app's backend)". MVP order: kopitech-lab/kopi-wealth-mobile#22.
+
+### M-Mobile.1 — Mobile Sign-in (Bearer Sessions) ✅
+
+Issue: #23. Design: [`docs/M-Mobile-1-mobile-sign-in.md`](docs/M-Mobile-1-mobile-sign-in.md)
+
+`/v1/auth/*` proxies kopi-sso so the app never sees the issuer, client id or secret. PKCE S256 only; redirect URIs `kopiwealth://callback` and `kopiwealthpreview://callback` only. Mobile sessions are opaque Bearer tokens (60 days, sliding). `requireSessionOrBearer()` replaces `requireSession()` in every authenticated handler; web cookie behaviour is unchanged.
+
+**Entity change:** `Session` gains `platform: 'mobile'` and `refreshToken` (removed on soft delete). Same `SESSION#{id}` keys.
+**New routes:** `GET /v1/auth/authorize`, `POST /v1/auth/token`, `POST /v1/auth/logout`
+
+---
+
 ## M-Income — Income Sources ⬜
 
 Track known, predictable recurring income streams (salary, rental, fixed retainer). Ad-hoc income (bonuses, dividends) is out of scope — those are captured as account balance updates. Income is used for budgeting and Cash Flow comparisons.

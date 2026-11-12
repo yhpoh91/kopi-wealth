@@ -26,7 +26,18 @@ export async function deleteSession(sessionId: string, deletedBy: string): Promi
   await ddb.send(new UpdateCommand({
     TableName: config.tableName,
     Key: { PK: `SESSION#${sessionId}`, SK: `SESSION#${sessionId}` },
-    UpdateExpression: 'SET deletedAt = :da, deletedBy = :db',
+    // The SSO refresh token (mobile sessions only) goes with the soft delete: an ended session has no use for it.
+    UpdateExpression: 'SET deletedAt = :da, deletedBy = :db REMOVE refreshToken',
     ExpressionAttributeValues: { ':da': now, ':db': deletedBy },
+  }));
+}
+
+export async function renewSessionTtl(sessionId: string, ttl: number): Promise<void> {
+  await ddb.send(new UpdateCommand({
+    TableName: config.tableName,
+    Key: { PK: `SESSION#${sessionId}`, SK: `SESSION#${sessionId}` },
+    UpdateExpression: 'SET #ttl = :ttl',
+    ExpressionAttributeNames: { '#ttl': 'ttl' },
+    ExpressionAttributeValues: { ':ttl': ttl },
   }));
 }

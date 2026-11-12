@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { getSession, putSession, deleteSession } from '../../src/repositories/session';
+import { getSession, putSession, deleteSession, renewSessionTtl } from '../../src/repositories/session';
 import type { SessionRecord } from '../../src/types';
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
@@ -50,5 +50,17 @@ describe('deleteSession', () => {
     const calls = ddbMock.commandCalls(UpdateCommand);
     expect(calls).toHaveLength(1);
     expect(calls[0].args[0].input.ExpressionAttributeValues![':db']).toBe('sub1');
+    expect(calls[0].args[0].input.UpdateExpression).toContain('REMOVE refreshToken');
+  });
+});
+
+describe('renewSessionTtl', () => {
+  it('sets the new ttl on the session', async () => {
+    ddbMock.on(UpdateCommand).resolves({});
+    await renewSessionTtl('sess1', 12345);
+    const input = ddbMock.commandCalls(UpdateCommand)[0].args[0].input;
+    expect(input.Key).toEqual({ PK: 'SESSION#sess1', SK: 'SESSION#sess1' });
+    expect(input.ExpressionAttributeNames).toEqual({ '#ttl': 'ttl' });
+    expect(input.ExpressionAttributeValues).toEqual({ ':ttl': 12345 });
   });
 });

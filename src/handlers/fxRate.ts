@@ -1,12 +1,12 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { requireSession } from '../lib/auth-middleware';
+import { requireSessionOrBearer } from '../lib/auth-middleware';
 import { getOrFetchHistoricalRate } from '../lib/fx';
 
 const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const auth = await requireSession(event);
+  const auth = await requireSessionOrBearer(event);
   if (!auth.authenticated) return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   const qs = new URLSearchParams(event.rawQueryString ?? '');

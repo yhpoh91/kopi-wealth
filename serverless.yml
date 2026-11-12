@@ -102,6 +102,30 @@ functions:
           method: POST
           path: /auth/logout
 
+  v1AuthAuthorize:
+    handler: src/handlers/v1/auth/authorize.handler
+    name: wealth-${self:provider.stage}-v1-auth-authorize
+    events:
+      - httpApi:
+          method: GET
+          path: /v1/auth/authorize
+
+  v1AuthToken:
+    handler: src/handlers/v1/auth/token.handler
+    name: wealth-${self:provider.stage}-v1-auth-token
+    events:
+      - httpApi:
+          method: POST
+          path: /v1/auth/token
+
+  v1AuthLogout:
+    handler: src/handlers/v1/auth/logout.handler
+    name: wealth-${self:provider.stage}-v1-auth-logout
+    events:
+      - httpApi:
+          method: POST
+          path: /v1/auth/logout
+
   landing:
     handler: src/handlers/landing.handler
     name: wealth-${self:provider.stage}-landing

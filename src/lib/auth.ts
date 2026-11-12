@@ -60,7 +60,7 @@ export async function exchangeCode(params: {
   redirectUri: string;
   code: string;
   verifier: string;
-}): Promise<{ id_token: string; access_token: string }> {
+}): Promise<{ id_token: string; access_token: string; refresh_token?: string }> {
   const res = await fetch(`${params.issuer}/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -74,5 +74,36 @@ export async function exchangeCode(params: {
     }),
   });
   if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
-  return res.json() as Promise<{ id_token: string; access_token: string }>;
+  return res.json() as Promise<{ id_token: string; access_token: string; refresh_token?: string }>;
+}
+
+// Redirect URIs the mobile app may use for /v1/auth/authorize and /v1/auth/token.
+// Each must also be registered on the kopi-sso client for the stage.
+export const ALLOWED_APP_REDIRECT_URIS: ReadonlySet<string> = new Set([
+  'kopiwealth://callback',
+  'kopiwealthpreview://callback',
+]);
+
+// Best effort: never throws; returns whether kopi-sso accepted the revocation.
+export async function revokeRefreshToken(params: {
+  issuer: string;
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+}): Promise<boolean> {
+  try {
+    const res = await fetch(`${params.issuer}/oauth2/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        token: params.refreshToken,
+        client_id: params.clientId,
+        client_secret: params.clientSecret,
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

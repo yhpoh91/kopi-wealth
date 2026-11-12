@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/lib/auth-middleware', () => ({ requireSession: vi.fn() }));
+vi.mock('../../src/lib/auth-middleware', () => ({ requireSessionOrBearer: vi.fn() }));
 vi.mock('../../src/repositories/user', () => ({ getUser: vi.fn() }));
 vi.mock('../../src/repositories/financialSettings', () => ({ getSettings: vi.fn() }));
 vi.mock('../../src/repositories/account', () => ({ queryByUser: vi.fn() }));
@@ -27,7 +27,7 @@ vi.mock('../../src/lib/clock', () => ({
 vi.mock('node:crypto', () => ({ randomUUID: vi.fn(() => 'new-uuid') }));
 
 import { handler } from '../../src/handlers/goals';
-import { requireSession } from '../../src/lib/auth-middleware';
+import { requireSessionOrBearer } from '../../src/lib/auth-middleware';
 import { getUser } from '../../src/repositories/user';
 import { getSettings } from '../../src/repositories/financialSettings';
 import { queryByUser as queryAccounts } from '../../src/repositories/account';
@@ -38,7 +38,7 @@ import { queryByUser as queryReceivables } from '../../src/repositories/receivab
 import { getGoal, queryByUser, putGoal, updateGoal, updateGoalStatus, softDelete, putSnapshot } from '../../src/repositories/goal';
 import { getOrFetchRates, convertAmount } from '../../src/lib/fx';
 
-const mockRequireSession = vi.mocked(requireSession);
+const mockRequireSession = vi.mocked(requireSessionOrBearer);
 const mockGetUser = vi.mocked(getUser);
 const mockGetSettings = vi.mocked(getSettings);
 const mockQueryAccounts = vi.mocked(queryAccounts);
@@ -102,7 +102,7 @@ beforeEach(() => {
 
 describe('GET /goals', () => {
   it('redirects when unauthenticated', async () => {
-    mockRequireSession.mockResolvedValue({ authenticated: false, redirect: { statusCode: 302, headers: { Location: '/auth/login' }, cookies: [], body: '' } });
+    mockRequireSession.mockResolvedValue({ authenticated: false, response: { statusCode: 302, headers: { Location: '/auth/login' }, cookies: [], body: '' } });
     const res = await handler(makeEvent('GET', '/goals'), {} as never, () => {}) as never;
     expect(res.statusCode).toBe(302);
   });

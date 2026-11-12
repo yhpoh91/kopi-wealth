@@ -1,6 +1,6 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { randomUUID } from 'node:crypto';
-import { requireSession } from '../lib/auth-middleware';
+import { requireSessionOrBearer } from '../lib/auth-middleware';
 import { renderPage } from '../lib/layout';
 import { escapeHtml } from '../lib/html';
 import { getUser } from '../repositories/user';
@@ -155,8 +155,8 @@ function renderEditPanel(item: { id: string; name: string; amount: number; curre
 }
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const auth = await requireSession(event);
-  if (!auth.authenticated) return auth.redirect;
+  const auth = await requireSessionOrBearer(event);
+  if (!auth.authenticated) return auth.response;
 
   const method = event.requestContext.http.method;
   const pathParts = event.rawPath.split('/').filter(Boolean);

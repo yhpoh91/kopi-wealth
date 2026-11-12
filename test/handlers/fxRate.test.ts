@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/lib/auth-middleware', () => ({ requireSession: vi.fn() }));
+vi.mock('../../src/lib/auth-middleware', () => ({ requireSessionOrBearer: vi.fn() }));
 vi.mock('../../src/lib/fx', () => ({ getOrFetchHistoricalRate: vi.fn() }));
 
 import { handler } from '../../src/handlers/fxRate';
-import { requireSession } from '../../src/lib/auth-middleware';
+import { requireSessionOrBearer } from '../../src/lib/auth-middleware';
 import { getOrFetchHistoricalRate } from '../../src/lib/fx';
 
-const mockRequireSession = vi.mocked(requireSession);
+const mockRequireSession = vi.mocked(requireSessionOrBearer);
 const mockGetOrFetch = vi.mocked(getOrFetchHistoricalRate);
 
 const auth = { authenticated: true as const, session: { sessionId: 's1', sub: 'sub1', role: undefined as undefined } };
@@ -40,7 +40,7 @@ describe('GET /fx-rate', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    mockRequireSession.mockResolvedValue({ authenticated: false, redirect: { statusCode: 302, headers: { Location: '/auth/login' }, body: '' } });
+    mockRequireSession.mockResolvedValue({ authenticated: false, response: { statusCode: 302, headers: { Location: '/auth/login' }, body: '' } });
     const res = await handler(makeEvent('from=USD&to=SGD&date=2026-07-03'), {} as never, {} as never);
     expect(res).toMatchObject({ statusCode: 401 });
   });

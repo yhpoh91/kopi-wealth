@@ -1,5 +1,5 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { requireSession } from '../lib/auth-middleware';
+import { requireSessionOrBearer } from '../lib/auth-middleware';
 import { renderPage } from '../lib/layout';
 import { escapeHtml } from '../lib/html';
 import { getUser } from '../repositories/user';
@@ -70,8 +70,8 @@ async function computeTotals(sub: string, currency: string): Promise<{
 }
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const auth = await requireSession(event);
-  if (!auth.authenticated) return auth.redirect;
+  const auth = await requireSessionOrBearer(event);
+  if (!auth.authenticated) return auth.response;
 
   const method = event.requestContext.http.method;
   const [user, settings, accountManagementUrl] = await Promise.all([

@@ -1,5 +1,5 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { requireSession } from '../lib/auth-middleware';
+import { requireSessionOrBearer } from '../lib/auth-middleware';
 import { renderPage } from '../lib/layout';
 import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
@@ -15,8 +15,8 @@ import { clock } from '../lib/clock';
 import { getAccountManagementUrl } from '../lib/account-management';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const auth = await requireSession(event);
-  if (!auth.authenticated) return auth.redirect;
+  const auth = await requireSessionOrBearer(event);
+  if (!auth.authenticated) return auth.response;
 
   const [user, settings, accountManagementUrl] = await Promise.all([
     getUser(auth.session.sub),
