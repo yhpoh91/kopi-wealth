@@ -133,6 +133,13 @@ Issue: #23. Design: [`docs/M-Mobile-1-mobile-sign-in.md`](docs/M-Mobile-1-mobile
 **Entity change:** `Session` gains `platform: 'mobile'` and `refreshToken` (removed on soft delete). Same `SESSION#{id}` keys.
 **New routes:** `GET /v1/auth/authorize`, `POST /v1/auth/token`, `POST /v1/auth/logout`
 
+### M-Mobile.2 — Overview Endpoint ✅
+
+Issue: #24. `GET /v1/overview` returns net worth, have/owe/available (with partial/FX flags), top goal, live `isAdmin` and feature flags, and an empty `due`. The dashboard maths moved into `buildOverview` (`src/lib/finance/overview.ts`), shared by the web dashboard and the endpoint. Adds the documented feature-flag minimum (`FEATURE#{name}` read, per-user evaluation); no admin UI (M15). Chart history and the due rule are separate tickets.
+
+**New routes:** `GET /v1/overview`
+**New entity:** `FeatureFlag` (`FEATURE#{name}` / `FEATURE#{name}`), read only
+
 ---
 
 ## M-Income — Income Sources ⬜

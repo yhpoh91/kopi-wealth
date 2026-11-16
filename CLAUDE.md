@@ -111,6 +111,16 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 | `POST /v1/auth/token` | JSON `{code, codeVerifier, redirectUri}` → code exchange with the secret from `wealth/{stage}/sso-client-secret`, same JIT provisioning as the web callback (`src/lib/provision-user.ts`) → `{token, expiresAt, user}`. |
 | `POST /v1/auth/logout` | Soft-deletes the Bearer's own session and revokes its SSO refresh token (best effort). Always `200 {ok:true}`. |
 
+## Overview Route (`src/handlers/v1/overview.ts`)
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/overview` | Bearer or cookie (`requireSessionOrBearer()`). JSON for the mobile Overview tab: `currency`, `asOf`, `netWorth`/`have`/`owe`/`available` (each `{value, partial, reason}`; `value` null with `reason` `no_data` or `fx_unavailable`), `topGoal` (`{name, tracks, percent, amountToGo}` or null), `flags` (`isAdmin` from a live `getUser`, plus `debugPanel`/`accountSelfService`; absent = off), `due` (always `[]` until the due-rule ticket). Errors are `{error}` JSON, no stack traces. |
+
+All the maths lives in `buildOverview(sub, settings)` (`src/lib/finance/overview.ts`), shared by the web dashboard handler and this route so they cannot drift. Change figures there, not in either handler. The dashboard still computes expenses itself.
+
+Feature flags: `isFeatureEnabled(name, sub)` (`src/lib/feature-flags.ts`) reads `FEATURE#{name}` (`GetItem`) and evaluates blockedSubs → allowedSubs → rolloutPercent (stable sha256 bucket per flag+sub; no `rolloutPercent` = everyone). Missing, deleted or unreadable = off. No admin UI yet (M15); items are written by migration.
+
 ## Layout / Rendering
 
 `renderPage(opts: LayoutOptions)` — all authenticated page handlers must pass:
@@ -131,8 +141,8 @@ kopi-wealth/
 ├── src/
 │   ├── config/          # Stage-aware config + secretName() helper
 │   ├── types/           # Shared DynamoDB record types (one file per entity)
-│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts
-│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in)
+│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths)
+│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts)
 │   ├── repositories/    # DynamoDB access layers (one file per entity)
 │   ├── templates/       # Server-rendered HTML (excluded from coverage)
 │   ├── migrations/      # Migration scripts (ordered, idempotent)
