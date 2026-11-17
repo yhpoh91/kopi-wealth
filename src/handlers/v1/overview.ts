@@ -4,23 +4,9 @@ import { buildOverview } from '../../lib/finance/overview';
 import type { Overview } from '../../lib/finance/overview';
 import { isFeatureEnabled } from '../../lib/feature-flags';
 import { json } from '../../lib/json';
+import { metric } from '../../lib/finance/metric';
 import { getUser } from '../../repositories/user';
 import { getSettings } from '../../repositories/financialSettings';
-
-type MetricReason = 'no_data' | 'fx_unavailable';
-
-interface Metric {
-  value: number | null;
-  partial: boolean;
-  reason: MetricReason | null; // why value is null
-}
-
-// value is null (with a reason) when it cannot be computed; partial = some amounts were left out
-// or unconverted because FX failed.
-function metric(value: number | null, hasData: boolean, partial: boolean): Metric {
-  if (value !== null) return { value, partial, reason: null };
-  return { value: null, partial, reason: hasData ? 'fx_unavailable' : 'no_data' };
-}
 
 export function toOverviewResponse(o: Overview) {
   const top = o.topGoals[0];

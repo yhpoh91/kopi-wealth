@@ -1,24 +1,24 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { randomUUID } from 'node:crypto';
 import { requireSessionOrBearer } from '../lib/auth-middleware';
 import { renderPage } from '../lib/layout';
 import { escapeHtml } from '../lib/html';
 import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
-import { getAccount, queryByUser, putAccount, updateAccount, softDelete, putSnapshot } from '../repositories/account';
+import { getAccount, queryByUser, softDelete } from '../repositories/account';
+import {
+  ACCOUNT_TYPES, CURRENCIES, parseAccountDetails, parseBalance, parseNewAccount, createAccount, saveAccountWithSnapshot,
+} from '../lib/accounts';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
 import { getAccountManagementUrl } from '../lib/account-management';
 import type { AccountType } from '../types/account';
 
-const ACCOUNT_TYPES: AccountType[] = ['savings', 'checking', 'fixed_deposit', 'cash'];
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   savings: 'Savings',
   checking: 'Checking',
   fixed_deposit: 'Fixed Deposit',
   cash: 'Cash',
 };
-const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSessionOrBearer(event);
@@ -51,63 +51,20 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     if (accountId) {
-      const name = (params.name ?? '').trim().slice(0, 100);
-      const type = ACCOUNT_TYPES.includes(params.type as AccountType) ? (params.type as AccountType) : null;
-      const balance = parseFloat(params.balance ?? '');
-      const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
-      const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
-      if (!name || !type || isNaN(balance) || balance < 0) return redirect('/cash-bank?error=invalid_balance');
+      const details = parseAccountDetails(params);
+      const balance = parseBalance(params.balance);
+      if (!details.ok || balance === null) return redirect('/cash-bank?error=invalid_balance');
       const now = clock.nowIso();
       const account = await getAccount(auth.session.sub, accountId);
       if (!account || account.deletedAt) return redirect('/cash-bank?error=not_found');
-      await updateAccount(auth.session.sub, accountId, { name, type, balance, institution, notes }, now);
-      await putSnapshot({
-        PK: `ACCT_SNAP#${accountId}`,
-        SK: `SNAP#${now}#${randomUUID()}`,
-        accountId,
-        balance,
-        recordedAt: now,
-        createdAt: now,
-      });
+      await saveAccountWithSnapshot(auth.session.sub, accountId, { ...details.value, balance }, now);
       return redirect('/cash-bank');
     }
 
     // Create
-    const name = (params.name ?? '').trim().slice(0, 100);
-    const type = ACCOUNT_TYPES.includes(params.type as AccountType) ? (params.type as AccountType) : null;
-    const currency = CURRENCIES.includes(params.currency) ? params.currency : null;
-    const balance = parseFloat(params.balance ?? '');
-    const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
-    const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
-
-    if (!name || !type || !currency || isNaN(balance) || balance < 0) return redirect(`/cash-bank?error=invalid&name=${encodeURIComponent(params.name ?? '')}&type=${encodeURIComponent(params.type ?? '')}&currency=${encodeURIComponent(params.currency ?? '')}&balance=${encodeURIComponent(params.balance ?? '')}`);
-
-    const id = randomUUID();
-    const now = clock.nowIso();
-    await putAccount({
-      PK: `ACCOUNT#${auth.session.sub}`,
-      SK: `ACCOUNT#${id}`,
-      GSI1PK: `USER#${auth.session.sub}`,
-      GSI1SK: `ACCOUNT#${now}`,
-      id,
-      sub: auth.session.sub,
-      name,
-      type,
-      balance,
-      currency,
-      institution,
-      notes,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await putSnapshot({
-      PK: `ACCT_SNAP#${id}`,
-      SK: `SNAP#${now}#${randomUUID()}`,
-      accountId: id,
-      balance,
-      recordedAt: now,
-      createdAt: now,
-    });
+    const input = parseNewAccount(params);
+    if (!input.ok) return redirect(`/cash-bank?error=invalid&name=${encodeURIComponent(params.name ?? '')}&type=${encodeURIComponent(params.type ?? '')}&currency=${encodeURIComponent(params.currency ?? '')}&balance=${encodeURIComponent(params.balance ?? '')}`);
+    await createAccount(auth.session.sub, input.value, clock.nowIso());
     return redirect('/cash-bank');
   }
 
