@@ -71,7 +71,8 @@ async function list(sub: string): Promise<APIGatewayProxyStructuredResultV2> {
   const sum = sumConverted(accounts.map((a) => ({ amount: a.balance, currency: a.currency })), fx.base, fx.rates, fx.failed);
   return json(200, {
     currency: fx.base,
-    total: metric(accounts.length > 0 && !sum.partial ? sum.total : null, accounts.length > 0, sum.partial),
+    // As on the web /cash-bank page: the sum of what could be converted, flagged partial.
+    total: metric(accounts.length > 0 ? sum.total : null, accounts.length > 0, sum.partial),
     accounts: accounts.map((a) => toAccountResponse(a, fx)),
   });
 }

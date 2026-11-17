@@ -20,9 +20,9 @@ No new keys. Reads: `Query` on `ACCOUNT#{sub}` and `GetItem` on `ACCOUNT#{sub}` 
 
 ## Decisions
 
-- **Shared rules.** Parsers and writers in `src/lib/accounts.ts`; the web handler calls them too. Over-long text is truncated, not rejected, because that is what the web did. Balance must be finite and >= 0 (the web used to accept `Infinity`; now rejected on both).
+- **Shared rules.** Parsers and writers in `src/lib/accounts.ts`; the web handler calls them too. Over-long text is truncated, not rejected, because that is what the web did. Balance must be a number >= 0, exactly as the web. `Infinity` (for example `1e999`) passes validation on both and fails at the DynamoDB write, so the API answers `500 internal_error`.
 - **PATCH vs balance.** The web edit form saves details and balance together and snapshots. The API splits them: PATCH changes details only (no snapshot), `/balance` writes the snapshot. Both bump `updatedAt`, as the web does, so `previous.updatedAt` after a rename is the rename time, not the last balance time.
-- **Incomplete totals are null.** As in `/v1/overview`, a total with any amount that cannot be converted is `value: null, partial: true, reason: 'fx_unavailable'`.
+- **Cash & Bank total follows the web `/cash-bank` page.** The sum of the amounts that could be converted, `partial: true` when any could not. Assets `have` and group totals follow the dashboard: incomplete is `value: null`, `reason: 'fx_unavailable'`.
 - **Assets.** `GET /v1/assets` reuses `buildOverview` (`groups` added to `Overview`) and `toOverviewResponse` for `have`/`available`. `dueCount` is 0 until #26.
 - **Ownership.** All lookups are keyed by the caller's `sub`; foreign, unknown and deleted ids give the same `404 not_found`.
 - **Known web quirk, not changed.** Web `POST /cash-bank/{id}/delete` does not check the account exists first.

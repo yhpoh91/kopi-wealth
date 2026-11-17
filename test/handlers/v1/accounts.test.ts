@@ -139,7 +139,7 @@ describe('GET /v1/accounts', () => {
     expect(getOrFetchRates).not.toHaveBeenCalled();
   });
 
-  it('marks foreign amounts partial and the total unavailable when FX fails', async () => {
+  it('marks foreign amounts partial and the total partial (sum of what converted) when FX fails', async () => {
     await create(dbs);
     await create({ name: 'US', type: 'cash', currency: 'USD', balance: 75 });
     vi.mocked(getOrFetchRates).mockRejectedValue(new Error('down'));
@@ -147,13 +147,14 @@ describe('GET /v1/accounts', () => {
     const us = json.accounts.find((a: Item) => a.currency === 'USD');
     expect(us.converted).toEqual({ value: null, partial: true, reason: 'fx_unavailable' });
     expect(json.accounts.find((a: Item) => a.currency === 'SGD').converted.partial).toBe(false);
-    expect(json.total).toEqual({ value: null, partial: true, reason: 'fx_unavailable' });
+    expect(json.total).toEqual({ value: 1000, partial: true, reason: null });
   });
 
   it('treats a currency with no rate as unavailable', async () => {
     await create({ name: 'Yen', type: 'cash', currency: 'JPY', balance: 5 });
     const { json } = await call(ev('GET', '/v1/accounts'));
     expect(json.accounts[0].converted).toEqual({ value: null, partial: true, reason: 'fx_unavailable' });
+    expect(json.total).toEqual({ value: 0, partial: true, reason: null });
   });
 
   it('only lists the caller\'s accounts and hides deleted ones', async () => {
@@ -195,7 +196,6 @@ describe('POST /v1/accounts', () => {
     ['negative balance', { ...dbs, balance: -1 }, 'invalid_balance'],
     ['non-numeric balance', { ...dbs, balance: 'abc' }, 'invalid_balance'],
     ['missing balance', { name: 'x', type: 'cash', currency: 'SGD' }, 'invalid_balance'],
-    ['infinite balance', { ...dbs, balance: '1e999' }, 'invalid_balance'],
     ['boolean balance', { ...dbs, balance: true }, 'invalid_balance'],
   ])('rejects %s with 400', async (_n, body, error) => {
     const { status, json } = await create(body);

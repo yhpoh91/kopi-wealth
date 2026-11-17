@@ -40,10 +40,10 @@ export function parseNotes(raw: unknown): string | undefined {
 }
 
 // Form values arrive as strings (parseFloat, as the web always did); JSON numbers pass through.
-// Must be a finite number >= 0.
+// Must be a number >= 0 (as on the web).
 export function parseBalance(raw: unknown): number | null {
   const n = typeof raw === 'number' ? raw : parseFloat(text(raw));
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  return !Number.isNaN(n) && n >= 0 ? n : null;
 }
 
 export function parseAccountDetails(raw: Record<string, unknown>): Parsed<AccountDetails> {
