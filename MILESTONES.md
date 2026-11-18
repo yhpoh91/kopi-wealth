@@ -140,6 +140,15 @@ Issue: #24. `GET /v1/overview` returns net worth, have/owe/available (with parti
 **New routes:** `GET /v1/overview`
 **New entity:** `FeatureFlag` (`FEATURE#{name}` / `FEATURE#{name}`), read only
 
+### M-Mobile.3 — Cash & Bank JSON API ✅
+
+Issue: #25. Design: [`docs/M-Mobile-3-cash-bank-api.md`](docs/M-Mobile-3-cash-bank-api.md)
+
+List, create, edit details, update balance and soft-delete Cash & Bank accounts over JSON, plus `GET /v1/assets` (Assets tab summary, added to this ticket at the owner's request) and `GET /v1/fx-rate`. Validation and writes moved into `src/lib/accounts.ts`, shared with the web `/cash-bank` handler; web and app records are identical (tested). Another user's account id is a 404.
+
+**New routes:** `GET|POST /v1/accounts`, `PATCH|DELETE /v1/accounts/{id}`, `POST /v1/accounts/{id}/balance`, `GET /v1/assets`, `GET /v1/fx-rate`
+**No entity or key changes.** `Overview` gains per-group totals (`groups`).
+
 ---
 
 ## M-Income — Income Sources ⬜

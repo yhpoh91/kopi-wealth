@@ -134,6 +134,42 @@ functions:
           method: GET
           path: /v1/overview
 
+  v1Assets:
+    handler: src/handlers/v1/assets.handler
+    name: wealth-${self:provider.stage}-v1-assets
+    events:
+      - httpApi:
+          method: GET
+          path: /v1/assets
+
+  v1Accounts:
+    handler: src/handlers/v1/accounts.handler
+    name: wealth-${self:provider.stage}-v1-accounts
+    events:
+      - httpApi:
+          method: GET
+          path: /v1/accounts
+      - httpApi:
+          method: POST
+          path: /v1/accounts
+      - httpApi:
+          method: PATCH
+          path: /v1/accounts/{id}
+      - httpApi:
+          method: DELETE
+          path: /v1/accounts/{id}
+      - httpApi:
+          method: POST
+          path: /v1/accounts/{id}/balance
+
+  v1FxRate:
+    handler: src/handlers/v1/fxRate.handler
+    name: wealth-${self:provider.stage}-v1-fx-rate
+    events:
+      - httpApi:
+          method: GET
+          path: /v1/fx-rate
+
   landing:
     handler: src/handlers/landing.handler
     name: wealth-${self:provider.stage}-landing

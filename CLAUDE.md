@@ -119,6 +119,24 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 
 All the maths lives in `buildOverview(sub, settings)` (`src/lib/finance/overview.ts`), shared by the web dashboard handler and this route so they cannot drift. Change figures there, not in either handler. The dashboard still computes expenses itself.
 
+## Cash & Bank and Assets Routes (`src/handlers/v1/accounts.ts`, `assets.ts`, `fxRate.ts`)
+
+All use `requireSessionOrBearer()`; errors are `{error}` JSON (`invalid_json`, `invalid_name`, `invalid_type`, `invalid_currency`, `invalid_balance`, `invalid_field`, `no_changes`, `not_found`, `internal_error`), no stack traces. An account id owned by another user, unknown, or soft-deleted is `404 {error:'not_found'}` (reads are `GetItem` on `ACCOUNT#{sub}`, so another user's id can never match).
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/accounts` | One `Query`. `{currency, total, accounts[]}`, oldest first. `total` is a `{value, partial, reason}` of the Cash & Bank total in base currency: the sum of the amounts that could be converted, `partial: true` when any could not (as the web `/cash-bank` page); `no_data` with no accounts. |
+| `POST /v1/accounts` | JSON `{name, type, currency, balance, institution?, notes?}` → `201 {account}`. Writes the account and its first `AccountSnapshot`. |
+| `PATCH /v1/accounts/{id}` | Details only (`name`, `type`, `institution`, `notes`; absent = kept, empty institution/notes = cleared). `balance`/`currency` → `400 invalid_field`. No snapshot. Bumps `updatedAt`, as the web edit does. → `{account}`. |
+| `POST /v1/accounts/{id}/balance` | `{balance}` → writes an `AccountSnapshot` → `{account, previous:{balance, updatedAt}}` (`previous` is the values before this update). |
+| `DELETE /v1/accounts/{id}` | Soft delete (`deletedAt`, `deletedBy`) → `200 {ok:true}`; already deleted = 404, no second write. |
+| `GET /v1/assets` | Assets tab summary: `{currency, asOf, have, groups:{cashBank, investments, cpf, owedToYou}, available}`. Each group is `{total:{value,partial,reason}, share, dueCount}`; `share` = percent of `have`, 1 decimal, null when unknown; `dueCount` is 0 until the due rule (#26). `have`/`available` come from `toOverviewResponse`, group totals from `buildOverview().groups`. |
+| `GET /v1/fx-rate?from=&to=[&date=]` | `{from, to, date, rate}`; date defaults to today; same currency → rate 1. Shares `lookupFxRate` (`src/lib/fx-rate.ts`) with web `/fx-rate`. 400 `Invalid parameters`, 404 `Rate not available`, 502 `Failed to fetch rate`. |
+
+Account response: `{id, name, type, institution|null, notes|null, currency, balance, converted:{value,partial,reason}, updatedAt}`. `converted` equals `balance` (no FX) in the base currency; a foreign amount with no rate or FX down is `{value:null, partial:true, reason:'fx_unavailable'}`. `/v1/assets` group totals and `have` follow the dashboard instead: incomplete = `value: null`, `partial: true`, `reason: 'fx_unavailable'`.
+
+Validation and writes live in `src/lib/accounts.ts` (`parseNewAccount`, `parseAccountDetails`, `parseBalance`, `createAccount`, `saveAccountWithSnapshot`), shared by the web `/cash-bank` handler and these routes so records are identical (tested). Name ≤ 100, institution ≤ 100, notes ≤ 500 are truncated (not rejected), as the web always did; balance must be a number ≥ 0 (as the web; `Infinity` cannot be stored and gives `500 internal_error`); currencies `SGD USD MYR AUD GBP EUR JPY HKD`. `metric()` (`finance/metric.ts`) and `sumConverted()` (`finance/convert.ts`) are the shared `{value, partial, reason}` and base-currency-sum helpers.
+
 Feature flags: `isFeatureEnabled(name, sub)` (`src/lib/feature-flags.ts`) reads `FEATURE#{name}` (`GetItem`) and evaluates blockedSubs → allowedSubs → rolloutPercent (stable sha256 bucket per flag+sub; no `rolloutPercent` = everyone). Missing, deleted or unreadable = off. No admin UI yet (M15); items are written by migration.
 
 ## Layout / Rendering
@@ -141,8 +159,8 @@ kopi-wealth/
 ├── src/
 │   ├── config/          # Stage-aware config + secretName() helper
 │   ├── types/           # Shared DynamoDB record types (one file per entity)
-│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths)
-│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts)
+│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths); accounts.ts (shared Cash & Bank validation + writes); fx-rate.ts; finance/metric.ts, finance/convert.ts
+│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts, v1/accounts.ts, v1/assets.ts, v1/fxRate.ts)
 │   ├── repositories/    # DynamoDB access layers (one file per entity)
 │   ├── templates/       # Server-rendered HTML (excluded from coverage)
 │   ├── migrations/      # Migration scripts (ordered, idempotent)

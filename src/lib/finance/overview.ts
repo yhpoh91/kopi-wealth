@@ -5,6 +5,7 @@ import { queryByUser as queryLiabilities } from '../../repositories/liability';
 import { queryByUser as queryReceivables } from '../../repositories/receivable';
 import { queryByUser as queryGoals } from '../../repositories/goal';
 import { getOrFetchRates, convertAmount } from '../fx';
+import { sumConverted } from './convert';
 import { clock } from '../clock';
 import { calcReservedFunds, calcAvailableFunds } from './reserved-funds';
 import { resolveTrackedValue, calcGoalProgress } from './goal';
@@ -21,6 +22,14 @@ export interface GoalProgress {
 // Everything the web dashboard and GET /v1/overview show, computed once so they cannot drift.
 // Totals are in the base currency. `has*` = the user has any data for it; `*Ok` = every
 // foreign-currency amount in it could be converted; `null` totals cannot be computed.
+// One asset group's total in the base currency. `partial` = some amounts could not be converted
+// (the total then leaves them out, or for CPF includes the unconverted SGD figure).
+export interface GroupTotal {
+  total: number;
+  has: boolean;
+  partial: boolean;
+}
+
 export interface Overview {
   currency: string;
   asOf: string;
@@ -40,6 +49,12 @@ export interface Overview {
   totalFundsOk: boolean;
   activeGoalCount: number;
   topGoals: GoalProgress[];     // first two active goals, in display order
+  groups: {
+    cashBank: GroupTotal;
+    investments: GroupTotal;
+    cpf: GroupTotal;
+    receivables: GroupTotal;    // active receivables ("Owed to you")
+  };
 }
 
 export async function buildOverview(sub: string, settings: FinancialSettings | null): Promise<Overview> {
@@ -77,30 +92,14 @@ export async function buildOverview(sub: string, settings: FinancialSettings | n
 
   // Savings (accounts)
   const hasSavingsData = accounts.length > 0;
-  let savingsNum = 0;
-  let savingsPartial = false;
-  for (const a of accounts) {
-    if (a.currency === currency) {
-      savingsNum += a.balance;
-    } else {
-      const c = convertAmount(a.balance, a.currency, currency, rates);
-      if (c !== null && !fxFailed) { savingsNum += c; } else { savingsPartial = true; }
-    }
-  }
+  const { total: savingsNum, partial: savingsPartial } = sumConverted(
+    accounts.map((a) => ({ amount: a.balance, currency: a.currency })), currency, rates, fxFailed);
   const savingsOk = !hasSavingsData || (!savingsPartial && !fxFailed);
 
   // Investments
   const hasInvestData = investments.length > 0;
-  let investNum = 0;
-  let investPartial = false;
-  for (const inv of investments) {
-    if (inv.currency === currency) {
-      investNum += inv.value;
-    } else {
-      const c = convertAmount(inv.value, inv.currency, currency, rates);
-      if (c !== null && !fxFailed) { investNum += c; } else { investPartial = true; }
-    }
-  }
+  const { total: investNum, partial: investPartial } = sumConverted(
+    investments.map((i) => ({ amount: i.value, currency: i.currency })), currency, rates, fxFailed);
   const investOk = !hasInvestData || (!investPartial && !fxFailed);
 
   // CPF
@@ -120,31 +119,15 @@ export async function buildOverview(sub: string, settings: FinancialSettings | n
   // Liabilities (active only)
   const activeLibs = liabilities.filter((l) => l.status !== 'settled');
   const hasLiabData = activeLibs.length > 0;
-  let liabTotal = 0;
-  let liabPartial = false;
-  for (const l of activeLibs) {
-    if (l.currency === currency) {
-      liabTotal += l.outstandingAmount;
-    } else {
-      const c = convertAmount(l.outstandingAmount, l.currency, currency, rates);
-      if (c !== null && !fxFailed) { liabTotal += c; } else { liabPartial = true; }
-    }
-  }
+  const { total: liabTotal, partial: liabPartial } = sumConverted(
+    activeLibs.map((l) => ({ amount: l.outstandingAmount, currency: l.currency })), currency, rates, fxFailed);
   const liabOk = !hasLiabData || (!liabPartial && !fxFailed);
 
   // Receivables (active only)
   const activeRecvs = receivables.filter((r) => r.status !== 'settled');
   const hasRecvData = activeRecvs.length > 0;
-  let recvTotal = 0;
-  let recvPartial = false;
-  for (const r of activeRecvs) {
-    if (r.currency === currency) {
-      recvTotal += r.outstandingAmount;
-    } else {
-      const c = convertAmount(r.outstandingAmount, r.currency, currency, rates);
-      if (c !== null && !fxFailed) { recvTotal += c; } else { recvPartial = true; }
-    }
-  }
+  const { total: recvTotal, partial: recvPartial } = sumConverted(
+    activeRecvs.map((r) => ({ amount: r.outstandingAmount, currency: r.currency })), currency, rates, fxFailed);
   const recvOk = !hasRecvData || (!recvPartial && !fxFailed);
 
   const hasAnyData = hasSavingsData || hasInvestData || hasCpfData || hasLiabData || hasRecvData;
@@ -212,5 +195,11 @@ export async function buildOverview(sub: string, settings: FinancialSettings | n
     totalFundsOk,
     activeGoalCount: allActiveGoals.length,
     topGoals,
+    groups: {
+      cashBank: { total: savingsNum, has: hasSavingsData, partial: savingsPartial },
+      investments: { total: investNum, has: hasInvestData, partial: investPartial },
+      cpf: { total: cpfNum, has: hasCpfData, partial: cpfPartial },
+      receivables: { total: recvTotal, has: hasRecvData, partial: recvPartial },
+    },
   };
 }
