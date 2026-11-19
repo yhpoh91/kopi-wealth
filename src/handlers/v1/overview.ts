@@ -50,7 +50,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     if (debugPanel) flags.debugPanel = true;
     if (accountSelfService) flags.accountSelfService = true;
 
-    return json(200, { ...toOverviewResponse(overview), flags, due: [] });
+    return json(200, { ...toOverviewResponse(overview), flags, due: overview.due });
   } catch (err) {
     console.error('overview failed', err instanceof Error ? err.message : err);
     return json(500, { error: 'internal_error' });

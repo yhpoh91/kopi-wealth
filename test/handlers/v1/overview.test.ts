@@ -38,11 +38,12 @@ import { getAccountManagementUrl } from '../../../src/lib/account-management';
 import { getOrFetchRates, convertAmount } from '../../../src/lib/fx';
 
 const T = '2024-01-01T00:00:00.000Z';
+const FRESH = '2026-06-28T00:00:00.000Z';
 const settings = { PK: 'SETTINGS#sub1', SK: 'SETTINGS', sub: 'sub1', currency: 'SGD', timezone: 'Asia/Singapore', createdAt: T, updatedAt: T };
 const user = { PK: 'USER#sub1', SK: 'USER#sub1', GSI1PK: 'ALL_USERS', GSI1SK: 'USER#sub1', sub: 'sub1', email: 'u@example.com', createdAt: T, updatedAt: T };
-const acct = (balance: number, currency = 'SGD') => ({ PK: 'ACCOUNT#sub1', SK: 'ACCOUNT#a', GSI1PK: 'USER#sub1', GSI1SK: 'ACCOUNT#x', id: 'a', sub: 'sub1', name: 'A', type: 'savings' as const, balance, currency, createdAt: T, updatedAt: T });
-const liab = (outstandingAmount: number, status: 'outstanding' | 'settled' = 'outstanding', currency = 'SGD') => ({ PK: 'LIAB#sub1', SK: 'LIAB#l', GSI1PK: 'USER#sub1', GSI1SK: 'LIAB#x', id: 'l', sub: 'sub1', name: 'Loan', type: 'personal_loan' as const, currency, originalAmount: outstandingAmount, outstandingAmount, status, createdAt: T, updatedAt: T });
-const recv = (outstandingAmount: number, status: 'outstanding' | 'settled' = 'outstanding') => ({ PK: 'RECV#sub1', SK: 'RECV#r', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#x', id: 'r', sub: 'sub1', name: 'Friend', currency: 'SGD', originalAmount: outstandingAmount, outstandingAmount, status, createdAt: T, updatedAt: T });
+const acct = (balance: number, currency = 'SGD') => ({ PK: 'ACCOUNT#sub1', SK: 'ACCOUNT#a', GSI1PK: 'USER#sub1', GSI1SK: 'ACCOUNT#x', id: 'a', sub: 'sub1', name: 'A', type: 'savings' as const, balance, currency, createdAt: T, updatedAt: FRESH });
+const liab = (outstandingAmount: number, status: 'outstanding' | 'settled' = 'outstanding', currency = 'SGD') => ({ PK: 'LIAB#sub1', SK: 'LIAB#l', GSI1PK: 'USER#sub1', GSI1SK: 'LIAB#x', id: 'l', sub: 'sub1', name: 'Loan', type: 'personal_loan' as const, currency, originalAmount: outstandingAmount, outstandingAmount, status, createdAt: T, updatedAt: FRESH });
+const recv = (outstandingAmount: number, status: 'outstanding' | 'settled' = 'outstanding') => ({ PK: 'RECV#sub1', SK: 'RECV#r', GSI1PK: 'USER#sub1', GSI1SK: 'RECV#x', id: 'r', sub: 'sub1', name: 'Friend', currency: 'SGD', originalAmount: outstandingAmount, outstandingAmount, status, createdAt: T, updatedAt: FRESH });
 const goal = (over: Record<string, unknown> = {}) => ({ PK: 'GOAL#sub1', SK: 'GOAL#g', GSI1PK: 'USER#sub1', GSI1SK: 'GOAL#1#g', id: 'g', sub: 'sub1', name: 'Lean FIRE', type: 'lean_fire' as const, tracksAgainst: 'net_worth' as const, targetAmount: 20000, sortOrder: 1, status: 'active' as const, createdAt: T, updatedAt: T, ...over });
 
 type Res = { statusCode: number; body: string; headers?: Record<string, string> };
@@ -96,6 +97,40 @@ describe('GET /v1/overview — auth', () => {
     const res = await call();
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.body)).toEqual({ error: 'unauthorized' });
+  });
+});
+
+const OLD = '2026-05-19T00:00:00.000Z'; // 41 days before the mocked 2026-06-29
+
+describe('GET /v1/overview — due', () => {
+  it('is [] for a user with nothing and for a user with nothing due', async () => {
+    expect((await body()).due).toEqual([]);
+    vi.mocked(queryAccounts).mockResolvedValue([acct(10)]);
+    expect((await body()).due).toEqual([]);
+  });
+
+  it('lists due items oldest first for Bearer and cookie callers, skipping settled and fresh ones', async () => {
+    vi.mocked(queryAccounts).mockResolvedValue([{ ...acct(10), updatedAt: OLD }]);
+    vi.mocked(getCpf).mockResolvedValue({ oa: 1, sa: 2, ma: 3, ra: 4, updatedAt: '2026-04-29T00:00:00.000Z' } as never);
+    vi.mocked(queryLiabilities).mockResolvedValue([{ ...liab(5), updatedAt: OLD }, { ...liab(0, 'settled'), id: 'l2', updatedAt: OLD }]);
+    vi.mocked(queryReceivables).mockResolvedValue([recv(7)]);
+    const expected = [
+      { kind: 'cpf', id: 'cpf', name: 'CPF', daysSince: 61, lastValue: { oa: 1, sa: 2, ma: 3, ra: 4, currency: 'SGD' } },
+      { kind: 'account', id: 'a', name: 'A', daysSince: 41, lastValue: { amount: 10, currency: 'SGD' } },
+      { kind: 'liability', id: 'l', name: 'Loan', daysSince: 41, lastValue: { amount: 5, currency: 'SGD' } },
+    ];
+    expect((await body()).due).toEqual(expected);
+    expect((await body(cookieEvent)).due).toEqual(expected);
+  });
+
+  it('uses the user timezone for today, defaulting to Singapore without settings', async () => {
+    // 2026-05-29T16:30Z is 30 May in Singapore (30 days: not due) but 29 May in UTC (31 days).
+    vi.mocked(queryAccounts).mockResolvedValue([{ ...acct(10), updatedAt: '2026-05-29T16:30:00.000Z' }]);
+    expect((await body()).due).toEqual([]);
+    vi.mocked(getSettings).mockResolvedValue({ ...settings, timezone: 'UTC' });
+    expect((await body()).due).toHaveLength(1);
+    vi.mocked(getSettings).mockResolvedValue(null);
+    expect((await body()).due).toEqual([]);
   });
 });
 
@@ -162,7 +197,7 @@ describe('GET /v1/overview — figures', () => {
 
   it('flags a net worth that includes unconverted CPF as partial', async () => {
     vi.mocked(getSettings).mockResolvedValue({ ...settings, currency: 'MYR' });
-    vi.mocked(getCpf).mockResolvedValue({ oa: 100, sa: 0, ma: 0, ra: 0 } as never);
+    vi.mocked(getCpf).mockResolvedValue({ oa: 100, sa: 0, ma: 0, ra: 0, updatedAt: FRESH } as never);
     vi.mocked(convertAmount).mockReturnValue(null);
     const b = await body();
     expect(b.netWorth).toEqual({ value: 100, partial: true, reason: null });
@@ -259,7 +294,7 @@ describe('web dashboard and /v1/overview agree', () => {
     'no data': () => {},
     'mixed assets and debts': () => {
       vi.mocked(queryAccounts).mockResolvedValue([acct(10000), acct(3500, 'MYR')]);
-      vi.mocked(getCpf).mockResolvedValue({ oa: 1000, sa: 500, ma: 200, ra: 0 } as never);
+      vi.mocked(getCpf).mockResolvedValue({ oa: 1000, sa: 500, ma: 200, ra: 0, updatedAt: FRESH } as never);
       vi.mocked(queryLiabilities).mockResolvedValue([liab(2000), liab(777, 'settled')]);
       vi.mocked(queryReceivables).mockResolvedValue([recv(300), recv(50, 'settled')]);
       vi.mocked(getSettings).mockResolvedValue({ ...settings, ef1SavingsFixed: 1500, ef1SavingsPct: 10 });

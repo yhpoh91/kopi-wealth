@@ -10,6 +10,8 @@ import { clock } from '../clock';
 import { calcReservedFunds, calcAvailableFunds } from './reserved-funds';
 import { resolveTrackedValue, calcGoalProgress } from './goal';
 import type { GoalMetrics } from './goal';
+import { buildDueItems } from './due';
+import type { DueItem } from './due';
 import type { FinancialSettings } from '../../types/financialSettings';
 import type { Goal } from '../../types/goal';
 
@@ -49,6 +51,7 @@ export interface Overview {
   totalFundsOk: boolean;
   activeGoalCount: number;
   topGoals: GoalProgress[];     // first two active goals, in display order
+  due: DueItem[];               // items not updated in more than 30 days, oldest first (user's timezone)
   groups: {
     cashBank: GroupTotal;
     investments: GroupTotal;
@@ -176,6 +179,12 @@ export async function buildOverview(sub: string, settings: FinancialSettings | n
     return { goal, currentValue, progress };
   });
 
+  const due = buildDueItems(
+    { accounts, investments, cpf, liabilities, receivables },
+    clock.nowMs(),
+    settings?.timezone ?? 'Asia/Singapore',
+  );
+
   return {
     currency,
     asOf: today,
@@ -195,6 +204,7 @@ export async function buildOverview(sub: string, settings: FinancialSettings | n
     totalFundsOk,
     activeGoalCount: allActiveGoals.length,
     topGoals,
+    due,
     groups: {
       cashBank: { total: savingsNum, has: hasSavingsData, partial: savingsPartial },
       investments: { total: investNum, has: hasInvestData, partial: investPartial },
