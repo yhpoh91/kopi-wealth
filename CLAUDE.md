@@ -115,7 +115,7 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 
 | Route | Purpose |
 |---|---|
-| `GET /v1/overview` | Bearer or cookie (`requireSessionOrBearer()`). JSON for the mobile Overview tab: `currency`, `asOf`, `netWorth`/`have`/`owe`/`available` (each `{value, partial, reason}`; `value` null with `reason` `no_data` or `fx_unavailable`), `topGoal` (`{name, tracks, percent, amountToGo}` or null), `flags` (`isAdmin` from a live `getUser`, plus `debugPanel`/`accountSelfService`; absent = off), `due` (always `[]` until the due-rule ticket). Errors are `{error}` JSON, no stack traces. |
+| `GET /v1/overview` | Bearer or cookie (`requireSessionOrBearer()`). JSON for the mobile Overview tab: `currency`, `asOf`, `netWorth`/`have`/`owe`/`available` (each `{value, partial, reason}`; `value` null with `reason` `no_data` or `fx_unavailable`), `topGoal` (`{name, tracks, percent, amountToGo}` or null), `flags` (`isAdmin` from a live `getUser`, plus `debugPanel`/`accountSelfService`; absent = off), `due` (items not updated in more than 30 days, see "Due rule" below; `[]` when nothing is due). Errors are `{error}` JSON, no stack traces. |
 
 All the maths lives in `buildOverview(sub, settings)` (`src/lib/finance/overview.ts`), shared by the web dashboard handler and this route so they cannot drift. Change figures there, not in either handler. The dashboard still computes expenses itself.
 
@@ -138,7 +138,7 @@ All use `requireSessionOrBearer()`; errors are `{error}` JSON (`invalid_json`, `
 | `PATCH /v1/accounts/{id}` | Details only (`name`, `type`, `institution`, `notes`; absent = kept, empty institution/notes = cleared). `balance`/`currency` → `400 invalid_field`. No snapshot. Bumps `updatedAt`, as the web edit does. → `{account}`. |
 | `POST /v1/accounts/{id}/balance` | `{balance}` → writes an `AccountSnapshot` → `{account, previous:{balance, updatedAt}}` (`previous` is the values before this update). |
 | `DELETE /v1/accounts/{id}` | Soft delete (`deletedAt`, `deletedBy`) → `200 {ok:true}`; already deleted = 404, no second write. |
-| `GET /v1/assets` | Assets tab summary: `{currency, asOf, have, groups:{cashBank, investments, cpf, owedToYou}, available}`. Each group is `{total:{value,partial,reason}, share, dueCount}`; `share` = percent of `have`, 1 decimal, null when unknown; `dueCount` is 0 until the due rule (#26). `have`/`available` come from `toOverviewResponse`, group totals from `buildOverview().groups`. |
+| `GET /v1/assets` | Assets tab summary: `{currency, asOf, have, groups:{cashBank, investments, cpf, owedToYou}, available}`. Each group is `{total:{value,partial,reason}, share, dueCount}`; `share` = percent of `have`, 1 decimal, null when unknown; `dueCount` is the number of due items in the group (see "Due rule"). `have`/`available` come from `toOverviewResponse`, group totals from `buildOverview().groups`. |
 | `GET /v1/fx-rate?from=&to=[&date=]` | `{from, to, date, rate}`; date defaults to today; same currency → rate 1. Shares `lookupFxRate` (`src/lib/fx-rate.ts`) with web `/fx-rate`. 400 `Invalid parameters`, 404 `Rate not available`, 502 `Failed to fetch rate`. |
 
 Account response: `{id, name, type, institution|null, notes|null, currency, balance, converted:{value,partial,reason}, updatedAt}`. `converted` equals `balance` (no FX) in the base currency; a foreign amount with no rate or FX down is `{value:null, partial:true, reason:'fx_unavailable'}`. `/v1/assets` group totals and `have` follow the dashboard instead: incomplete = `value: null`, `partial: true`, `reason: 'fx_unavailable'`.
@@ -146,6 +146,20 @@ Account response: `{id, name, type, institution|null, notes|null, currency, bala
 Validation and writes live in `src/lib/accounts.ts` (`parseNewAccount`, `parseAccountDetails`, `parseBalance`, `createAccount`, `saveAccountWithSnapshot`), shared by the web `/cash-bank` handler and these routes so records are identical (tested). Name ≤ 100, institution ≤ 100, notes ≤ 500 are truncated (not rejected), as the web always did; balance must be a number ≥ 0 (as the web; `Infinity` cannot be stored and gives `500 internal_error`); currencies `SGD USD MYR AUD GBP EUR JPY HKD`. `metric()` (`finance/metric.ts`) and `sumConverted()` (`finance/convert.ts`) are the shared `{value, partial, reason}` and base-currency-sum helpers.
 
 Feature flags: `isFeatureEnabled(name, sub)` (`src/lib/feature-flags.ts`) reads `FEATURE#{name}` (`GetItem`) and evaluates blockedSubs → allowedSubs → rolloutPercent (stable sha256 bucket per flag+sub; no `rolloutPercent` = everyone). Missing, deleted or unreadable = off. No admin UI yet (M15); items are written by migration.
+
+## Due rule (`src/lib/finance/due.ts`, #26)
+
+An item is **due when its latest update is MORE than 30 days ago**, the same for every kind (cash account, investment, CPF, liability, receivable): 29 and 30 days are not due, 31 is. "Latest update" is the record's `updatedAt` (owner decision: no snapshot reads, so no extra queries; a rename in `PATCH /v1/accounts/{id}` also bumps `updatedAt` and resets the clock). Days are whole **calendar days in the user's `FinancialSettings.timezone`** (`Asia/Singapore` when there are no settings, UTC if the zone is unknown), between the local date of `updatedAt` and the local date of now. `Overview.asOf` is still the UTC date; only the due maths uses the user's zone. Settled liabilities/receivables and soft-deleted items are never due; only the signed-in user's own items are read.
+
+`buildOverview` returns `due: DueItem[]` (`buildDueItems`), oldest first (largest `daysSince` first; ties by kind order account, investment, cpf, liability, receivable, then `id`). `GET /v1/overview` returns it as `due`. A due item is a statement of fact (`daysSince: 41`), never advice.
+
+```
+due[]: { kind: 'account'|'investment'|'cpf'|'liability'|'receivable', id, name, daysSince, lastValue }
+lastValue (account, investment, liability, receivable): { amount, currency }   // balance / value / outstandingAmount, in the item's own currency
+lastValue (cpf):                                        { oa, sa, ma, ra, currency: 'SGD' }
+```
+
+The CPF entry has `id: "cpf"` and `name: "CPF"`. `GET /v1/assets` group `dueCount` = due items of the matching kind: `cashBank` = account, `investments` = investment, `cpf` = cpf, `owedToYou` = receivable. Liabilities are not an asset group, so they appear only in `due[]`.
 
 ## Layout / Rendering
 
@@ -167,7 +181,7 @@ kopi-wealth/
 ├── src/
 │   ├── config/          # Stage-aware config + secretName() helper
 │   ├── types/           # Shared DynamoDB record types (one file per entity)
-│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths); accounts.ts (shared Cash & Bank validation + writes); fx-rate.ts; finance/metric.ts, finance/convert.ts
+│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths); accounts.ts (shared Cash & Bank validation + writes); fx-rate.ts; finance/metric.ts, finance/convert.ts, finance/due.ts (due-for-update rule)
 │   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts, v1/me.ts, v1/accounts.ts, v1/assets.ts, v1/fxRate.ts)
 │   ├── repositories/    # DynamoDB access layers (one file per entity)
 │   ├── templates/       # Server-rendered HTML (excluded from coverage)

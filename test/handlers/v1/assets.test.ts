@@ -28,7 +28,8 @@ import { queryByUser as queryGoals } from '../../../src/repositories/goal';
 import { getOrFetchRates } from '../../../src/lib/fx';
 
 const T = '2024-01-01T00:00:00.000Z';
-const base = { GSI1PK: 'USER#sub1', GSI1SK: 'x', sub: 'sub1', createdAt: T, updatedAt: T };
+const FRESH = '2026-06-28T00:00:00.000Z';
+const base = { GSI1PK: 'USER#sub1', GSI1SK: 'x', sub: 'sub1', createdAt: T, updatedAt: FRESH };
 const settings = { PK: 'SETTINGS#sub1', SK: 'SETTINGS', sub: 'sub1', currency: 'SGD', timezone: 'Asia/Singapore', createdAt: T, updatedAt: T };
 const acct = (balance: number, currency = 'SGD') => ({ ...base, PK: 'ACCOUNT#sub1', SK: 'ACCOUNT#a', id: 'a', name: 'A', type: 'savings' as const, balance, currency });
 const invest = (value: number, currency = 'SGD') => ({ ...base, PK: 'INVEST#sub1', SK: 'INVEST#i', id: 'i', name: 'I', value, currency }) as never;
@@ -78,7 +79,7 @@ describe('GET /v1/assets', () => {
   it('returns each group total, its share of assets, dueCount 0 and available funds', async () => {
     vi.mocked(queryAccounts).mockResolvedValue([acct(600)]);
     vi.mocked(queryInvestments).mockResolvedValue([invest(300)]);
-    vi.mocked(getCpf).mockResolvedValue({ PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 50, sa: 25, ma: 15, ra: 10, createdAt: T, updatedAt: T } as never);
+    vi.mocked(getCpf).mockResolvedValue({ PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 50, sa: 25, ma: 15, ra: 10, createdAt: T, updatedAt: FRESH } as never);
     vi.mocked(queryReceivables).mockResolvedValue([recv(100)]);
     const { json } = await get();
     expect(json.have).toEqual({ value: 1100, partial: false, reason: null });
@@ -88,6 +89,22 @@ describe('GET /v1/assets', () => {
     expect(json.groups.owedToYou.total.value).toBe(100);
     expect(json.available).toMatchObject({ reason: null, partial: false });
     expect(json.available.value).not.toBeNull();
+  });
+
+  it('dueCount per group equals the matching due items; liabilities are not a group', async () => {
+    const OLD = '2026-05-19T00:00:00.000Z';
+    vi.mocked(queryAccounts).mockResolvedValue([{ ...acct(600), updatedAt: OLD }, { ...acct(5), id: 'b', updatedAt: OLD }]);
+    vi.mocked(queryInvestments).mockResolvedValue([invest(300)]);
+    vi.mocked(getCpf).mockResolvedValue({ PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 1, sa: 1, ma: 1, ra: 0, createdAt: T, updatedAt: OLD } as never);
+    vi.mocked(queryReceivables).mockResolvedValue([{ ...recv(100), updatedAt: OLD }]);
+    vi.mocked(queryLiabilities).mockResolvedValue([{ ...base, id: 'l', name: 'L', currency: 'SGD', originalAmount: 1, outstandingAmount: 1, status: 'outstanding', updatedAt: OLD } as never]);
+    const { json } = await get();
+    const o = JSON.parse(((await overview(ev(), {} as never, () => {})) as Res).body);
+    expect(o.due).toHaveLength(5);
+    expect(json.groups.cashBank.dueCount).toBe(2);
+    expect(json.groups.investments.dueCount).toBe(0);
+    expect(json.groups.cpf.dueCount).toBe(1);
+    expect(json.groups.owedToYou.dueCount).toBe(1);
   });
 
   it('agrees with /v1/overview on have and available', async () => {
@@ -126,7 +143,7 @@ describe('GET /v1/assets', () => {
   it('treats CPF that cannot be converted as unavailable', async () => {
     vi.mocked(getSettings).mockResolvedValue({ ...settings, currency: 'USD' });
     vi.mocked(getOrFetchRates).mockRejectedValue(new Error('down'));
-    vi.mocked(getCpf).mockResolvedValue({ PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 50, sa: 0, ma: 0, ra: 0, createdAt: T, updatedAt: T } as never);
+    vi.mocked(getCpf).mockResolvedValue({ PK: 'CPF#sub1', SK: 'CPF', sub: 'sub1', oa: 50, sa: 0, ma: 0, ra: 0, createdAt: T, updatedAt: FRESH } as never);
     expect((await get()).json.groups.cpf.total).toEqual({ value: null, partial: true, reason: 'fx_unavailable' });
   });
 

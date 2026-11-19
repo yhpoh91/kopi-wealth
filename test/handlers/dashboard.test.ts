@@ -15,7 +15,7 @@ vi.mock('../../src/repositories/goal', () => ({ queryByUser: vi.fn().mockResolve
 vi.mock('../../src/repositories/expenseItem', () => ({ queryByPeriod: vi.fn() }));
 vi.mock('../../src/lib/account-management', () => ({ getAccountManagementUrl: vi.fn() }));
 vi.mock('../../src/lib/clock', () => ({
-  clock: { nowIso: vi.fn(() => '2026-06-29T00:00:00.000Z'), today: vi.fn(() => '2026-06-29') },
+  clock: { nowMs: vi.fn(() => Date.parse('2026-06-29T00:00:00.000Z')), nowIso: vi.fn(() => '2026-06-29T00:00:00.000Z'), today: vi.fn(() => '2026-06-29') },
 }));
 vi.mock('../../src/lib/fx', () => ({
   getOrFetchRates: vi.fn(),
