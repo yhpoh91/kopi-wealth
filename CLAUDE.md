@@ -119,6 +119,14 @@ Table: `wealth-{stage}-data` | GSI: `GSI1` (GSI1PK + GSI1SK) | TTL attribute: `t
 
 All the maths lives in `buildOverview(sub, settings)` (`src/lib/finance/overview.ts`), shared by the web dashboard handler and this route so they cannot drift. Change figures there, not in either handler. The dashboard still computes expenses itself.
 
+## Profile Route (`src/handlers/v1/me.ts`)
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/me` | `requireSessionOrBearer()`. `{user:{sub, email, name?}, accountManagementUrl}`. `user` is the caller's own `USER#{sub}` record only (`GetItem`); `name` is omitted when absent; never `picture` or `role`. `accountManagementUrl` is `getAccountManagementUrl()` (kopi-sso discovery `account_management_uri` + `client_id` + `return_url=${appUrl}/`), `""` when discovery fails or has none. Missing user record = `404 {error:'not_found'}`; failures `500 {error:'internal_error'}`. No log line carries the name or email. |
+
+`return_url` is the web `${appUrl}/` for every caller, mobile included. kopi-sso's account page accepts a `return_url` only if `new URL(return_url).origin` is in the client's `allowedOrigins`, and a custom scheme such as `kopiwealth://account` has origin `"null"`, so it is refused (allowing it would mean adding `"null"`, which admits every custom scheme). Same as kopi-health. Revisit only if kopi-sso validates custom schemes against redirect URIs.
+
 ## Cash & Bank and Assets Routes (`src/handlers/v1/accounts.ts`, `assets.ts`, `fxRate.ts`)
 
 All use `requireSessionOrBearer()`; errors are `{error}` JSON (`invalid_json`, `invalid_name`, `invalid_type`, `invalid_currency`, `invalid_balance`, `invalid_field`, `no_changes`, `not_found`, `internal_error`), no stack traces. An account id owned by another user, unknown, or soft-deleted is `404 {error:'not_found'}` (reads are `GetItem` on `ACCOUNT#{sub}`, so another user's id can never match).
@@ -160,7 +168,7 @@ kopi-wealth/
 │   ├── config/          # Stage-aware config + secretName() helper
 │   ├── types/           # Shared DynamoDB record types (one file per entity)
 │   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths); accounts.ts (shared Cash & Bank validation + writes); fx-rate.ts; finance/metric.ts, finance/convert.ts
-│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts, v1/accounts.ts, v1/assets.ts, v1/fxRate.ts)
+│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts, v1/me.ts, v1/accounts.ts, v1/assets.ts, v1/fxRate.ts)
 │   ├── repositories/    # DynamoDB access layers (one file per entity)
 │   ├── templates/       # Server-rendered HTML (excluded from coverage)
 │   ├── migrations/      # Migration scripts (ordered, idempotent)

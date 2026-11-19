@@ -134,6 +134,14 @@ functions:
           method: GET
           path: /v1/overview
 
+  v1Me:
+    handler: src/handlers/v1/me.handler
+    name: wealth-${self:provider.stage}-v1-me
+    events:
+      - httpApi:
+          method: GET
+          path: /v1/me
+
   v1Assets:
     handler: src/handlers/v1/assets.handler
     name: wealth-${self:provider.stage}-v1-assets

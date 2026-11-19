@@ -149,6 +149,13 @@ List, create, edit details, update balance and soft-delete Cash & Bank accounts 
 **New routes:** `GET|POST /v1/accounts`, `PATCH|DELETE /v1/accounts/{id}`, `POST /v1/accounts/{id}/balance`, `GET /v1/assets`, `GET /v1/fx-rate`
 **No entity or key changes.** `Overview` gains per-group totals (`groups`).
 
+### M-Mobile.4 — Profile Endpoint ✅
+
+Issue: #43. `GET /v1/me` returns the caller's own `{user:{sub, email, name?}, accountManagementUrl}` for the app's avatar panel. Checked kopi-sso first: its account page validates `return_url` by origin against the client's `allowedOrigins`, and a custom scheme has origin `"null"`, so the app-link return was refused. Owner chose the fallback: `return_url` stays `${appUrl}/` for every caller (kopi-wealth-mobile#29 dropped). No console changes needed.
+
+**New routes:** `GET /v1/me`
+**No entity or key changes.**
+
 ---
 
 ## M-Income — Income Sources ⬜
