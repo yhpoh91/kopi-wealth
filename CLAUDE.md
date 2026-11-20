@@ -123,9 +123,9 @@ All the maths lives in `buildOverview(sub, settings)` (`src/lib/finance/overview
 
 | Route | Purpose |
 |---|---|
-| `GET /v1/me` | `requireSessionOrBearer()`. `{user:{sub, email, name?}, accountManagementUrl}`. `user` is the caller's own `USER#{sub}` record only (`GetItem`); `name` is omitted when absent; never `picture` or `role`. `accountManagementUrl` is `getAccountManagementUrl()` (kopi-sso discovery `account_management_uri` + `client_id` + `return_url=${appUrl}/`), `""` when discovery fails or has none. Missing user record = `404 {error:'not_found'}`; failures `500 {error:'internal_error'}`. No log line carries the name or email. |
+| `GET /v1/me` | `requireSessionOrBearer()`. `{user:{sub, email, name?}, accountManagementUrl}`. `user` is the caller's own `USER#{sub}` record only (`GetItem`); `name` is omitted when absent; never `picture` or `role`. `accountManagementUrl` is `getAccountManagementUrl(returnUrl?)` (kopi-sso discovery `account_management_uri` + `client_id` + `return_url`, cached per return URL; default `${appUrl}/`), `""` when discovery fails or has none. Missing user record = `404 {error:'not_found'}`; failures `500 {error:'internal_error'}`. No log line carries the name or email. |
 
-`return_url` is the web `${appUrl}/` for every caller, mobile included. kopi-sso's account page accepts a `return_url` only if `new URL(return_url).origin` is in the client's `allowedOrigins`, and a custom scheme such as `kopiwealth://account` has origin `"null"`, so it is refused (allowing it would mean adding `"null"`, which admits every custom scheme). Same as kopi-health. Revisit only if kopi-sso validates custom schemes against redirect URIs.
+`return_url` depends on the caller (#48): a mobile session (`SessionContext.platform === 'mobile'`) gets `kopiwealthpreview://account` on preview and `kopiwealth://account` on prod, so kopi-sso's back link reopens the app; a web session keeps `${appUrl}/`. kopi-sso accepts a non-http(s) `return_url` when its scheme matches the scheme of one of the client's registered redirect URIs (kopi-sso#47); earlier it checked only origins, and a custom scheme's origin is `"null"`. Ship order: the app must handle `…://account` first (preview app before the preview backend, prod app before the prod backend).
 
 ## Cash & Bank and Assets Routes (`src/handlers/v1/accounts.ts`, `assets.ts`, `fxRate.ts`)
 
