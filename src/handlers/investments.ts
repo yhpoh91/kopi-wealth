@@ -1,18 +1,17 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { randomUUID } from 'node:crypto';
 import { requireSessionOrBearer } from '../lib/auth-middleware';
 import { renderPage } from '../lib/layout';
 import { escapeHtml } from '../lib/html';
 import { getUser } from '../repositories/user';
 import { getSettings } from '../repositories/financialSettings';
-import { getInvestment, queryByUser, putInvestment, updateInvestment, softDelete, putSnapshot } from '../repositories/investment';
+import { getInvestment, queryByUser, softDelete } from '../repositories/investment';
+import { parseInvestmentDetails, parseNewInvestment, parseValue, createInvestment, saveInvestmentWithSnapshot } from '../lib/investments';
+import { CURRENCIES } from '../lib/accounts';
 import { getOrFetchRates, convertAmount } from '../lib/fx';
 import { clock } from '../lib/clock';
 import { getAccountManagementUrl } from '../lib/account-management';
 import { INVESTMENT_TYPES, INVESTMENT_TYPE_LABELS } from '../types/investment';
 import type { InvestmentType } from '../types/investment';
-
-const CURRENCIES = ['SGD', 'USD', 'MYR', 'AUD', 'GBP', 'EUR', 'JPY', 'HKD'];
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSessionOrBearer(event);
@@ -45,65 +44,22 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     if (investId) {
-      const name = (params.name ?? '').trim().slice(0, 100);
-      const type = INVESTMENT_TYPES.includes(params.type as InvestmentType) ? (params.type as InvestmentType) : null;
-      const value = parseFloat(params.value ?? '');
-      const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
-      const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
-      if (!name || !type || isNaN(value) || value < 0) return redirect('/investments?error=invalid_value');
+      const details = parseInvestmentDetails(params);
+      const value = parseValue(params.value);
+      if (!details.ok || value === null) return redirect('/investments?error=invalid_value');
       const now = clock.nowIso();
       const existing = await getInvestment(auth.session.sub, investId);
       if (!existing || existing.deletedAt) return redirect('/investments?error=not_found');
-      await updateInvestment(auth.session.sub, investId, { name, type, value, institution, notes }, now);
-      await putSnapshot({
-        PK: `INVEST_SNAP#${investId}`,
-        SK: `SNAP#${now}#${randomUUID()}`,
-        investId,
-        value,
-        recordedAt: now,
-        createdAt: now,
-      });
+      await saveInvestmentWithSnapshot(auth.session.sub, investId, { ...details.value, value }, now);
       return redirect('/investments');
     }
 
     // Create
-    const name = (params.name ?? '').trim().slice(0, 100);
-    const type = INVESTMENT_TYPES.includes(params.type as InvestmentType) ? (params.type as InvestmentType) : null;
-    const currency = CURRENCIES.includes(params.currency) ? params.currency : null;
-    const value = parseFloat(params.value ?? '');
-    const institution = (params.institution ?? '').trim().slice(0, 100) || undefined;
-    const notes = (params.notes ?? '').trim().slice(0, 500) || undefined;
-
-    if (!name || !type || !currency || isNaN(value) || value < 0) {
+    const input = parseNewInvestment(params);
+    if (!input.ok) {
       return redirect(`/investments?error=invalid&name=${encodeURIComponent(params.name ?? '')}&type=${encodeURIComponent(params.type ?? '')}&currency=${encodeURIComponent(params.currency ?? '')}&value=${encodeURIComponent(params.value ?? '')}`);
     }
-
-    const id = randomUUID();
-    const now = clock.nowIso();
-    await putInvestment({
-      PK: `INVEST#${auth.session.sub}`,
-      SK: `INVEST#${id}`,
-      GSI1PK: `USER#${auth.session.sub}`,
-      GSI1SK: `INVEST#${now}`,
-      id,
-      sub: auth.session.sub,
-      name,
-      type,
-      currency,
-      value,
-      institution,
-      notes,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await putSnapshot({
-      PK: `INVEST_SNAP#${id}`,
-      SK: `SNAP#${now}#${randomUUID()}`,
-      investId: id,
-      value,
-      recordedAt: now,
-      createdAt: now,
-    });
+    await createInvestment(auth.session.sub, input.value, clock.nowIso());
     return redirect('/investments');
   }
 

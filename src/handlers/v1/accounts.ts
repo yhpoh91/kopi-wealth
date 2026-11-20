@@ -2,10 +2,9 @@ import type { APIGatewayProxyEventV2, APIGatewayProxyHandlerV2, APIGatewayProxyS
 import { requireSessionOrBearer } from '../../lib/auth-middleware';
 import { json } from '../../lib/json';
 import { clock } from '../../lib/clock';
-import { getOrFetchRates, convertAmount } from '../../lib/fx';
+import { getOrFetchRates } from '../../lib/fx';
 import { metric } from '../../lib/finance/metric';
-import type { Metric } from '../../lib/finance/metric';
-import { sumConverted } from '../../lib/finance/convert';
+import { sumConverted, convertedMetric } from '../../lib/finance/convert';
 import {
   parseNewAccount, parseName, parseType, parseInstitution, parseNotes, parseBalance, createAccount, saveAccountWithSnapshot,
 } from '../../lib/accounts';
@@ -29,16 +28,9 @@ async function loadFx(sub: string, accounts: Account[]): Promise<Fx> {
   return { base, rates, failed };
 }
 
-// converted: the base-currency amount. Equal to balance (no FX) in the base currency; otherwise
-// null + partial + fx_unavailable when it cannot be converted.
+// converted: the base-currency amount (see convertedMetric).
 function toAccountResponse(a: Account, fx: Fx) {
-  let converted: Metric;
-  if (a.currency === fx.base) {
-    converted = metric(a.balance, true, false);
-  } else {
-    const c = fx.failed ? null : convertAmount(a.balance, a.currency, fx.base, fx.rates);
-    converted = c === null ? metric(null, true, true) : metric(c, true, false);
-  }
+  const converted = convertedMetric(a.balance, a.currency, fx.base, fx.rates, fx.failed);
   return {
     id: a.id,
     name: a.name,

@@ -10,6 +10,8 @@ import { clock } from '../clock';
 import { calcReservedFunds, calcAvailableFunds } from './reserved-funds';
 import { resolveTrackedValue, calcGoalProgress } from './goal';
 import type { GoalMetrics } from './goal';
+import { metric } from './metric';
+import type { Metric } from './metric';
 import { buildDueItems } from './due';
 import type { DueItem } from './due';
 import type { FinancialSettings } from '../../types/financialSettings';
@@ -30,6 +32,11 @@ export interface GroupTotal {
   total: number;
   has: boolean;
   partial: boolean;
+}
+
+// A group total as the API shows it: null when partial (/v1/assets and /v1/investments agree).
+export function groupMetric(g: GroupTotal): Metric {
+  return metric(g.has && !g.partial ? g.total : null, g.has, g.partial);
 }
 
 export interface Overview {

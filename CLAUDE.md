@@ -147,6 +147,22 @@ Validation and writes live in `src/lib/accounts.ts` (`parseNewAccount`, `parseAc
 
 Feature flags: `isFeatureEnabled(name, sub)` (`src/lib/feature-flags.ts`) reads `FEATURE#{name}` (`GetItem`) and evaluates blockedSubs → allowedSubs → rolloutPercent (stable sha256 bucket per flag+sub; no `rolloutPercent` = everyone). Missing, deleted or unreadable = off. No admin UI yet (M15); items are written by migration.
 
+## Investments Routes (`src/handlers/v1/investments.ts`, #27)
+
+Same shape of work as Cash & Bank. All use `requireSessionOrBearer()`; errors are `{error}` JSON (`invalid_json`, `invalid_name`, `invalid_type`, `invalid_currency`, `invalid_value`, `invalid_field`, `no_changes`, `not_found`, `internal_error`), no stack traces. An id owned by another user, unknown, or soft-deleted is `404 {error:'not_found'}` (reads are `GetItem` on `INVEST#{sub}`).
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/investments` | `{currency, total, groups[]}`. One `Query` for the holdings plus one `Query` per holding on `INVEST_SNAP#{id}` (newest first, limit 2, in parallel) for `changeSinceLast`. `total` is a `{value, partial, reason}` of the Investments total in base currency, the same as `groups.investments.total` in `GET /v1/assets` (null + `partial` + `fx_unavailable` when any amount cannot be converted; `no_data` with no holdings). `groups` has one entry per type present, in web order: `{type, label, total, share, holdings[]}`; `total` follows the same rule; `share` = percent of the Investments total, 1 decimal, null when either figure is unknown or the total is 0. Holdings oldest first. |
+| `POST /v1/investments` | JSON `{name, type, currency, value, institution?, notes?}` → `201 {investment}`. Writes the holding and its first `InvestmentSnapshot`. |
+| `PATCH /v1/investments/{id}` | Details only (`name`, `type`, `institution`, `notes`; absent = kept, empty institution/notes = cleared). `value`/`currency` → `400 invalid_field`. No snapshot. Bumps `updatedAt`. → `{investment}`. |
+| `POST /v1/investments/{id}/value` | `{value}` → writes an `InvestmentSnapshot` → `{investment, previous:{value, updatedAt}}`. |
+| `DELETE /v1/investments/{id}` | Soft delete → `200 {ok:true}`; already deleted = 404, no second write. |
+
+Holding: `{id, name, type, institution|null, notes|null, currency, value, converted:{value,partial,reason}, updatedAt, changeSinceLast, due, daysSince}`. `converted` is `convertedMetric()` (`finance/convert.ts`, shared with `/v1/accounts`). `changeSinceLast` = `{amount, percent, since}`: current value minus the value before the latest update, from the two newest snapshots, in the holding's own currency; `percent` is 1 decimal, null when the earlier value was 0; `since` is when the earlier value was recorded; the whole field is `null` with fewer than two snapshots (never 0). `due`/`daysSince` use the Due rule below (so they agree with `/v1/overview` `due[]` and `/v1/assets` `dueCount`). Create returns `changeSinceLast: null`; the value route reads the newest snapshot before writing (a Query right after a write can miss it).
+
+Validation and writes live in `src/lib/investments.ts` (`parseInvestmentDetails`, `parseNewInvestment`, `parseValue`, `createInvestment`, `saveInvestmentWithSnapshot`), shared by the web `/investments` handler and these routes so records are identical (tested). Name/institution/notes rules and currencies are those of Cash & Bank (`src/lib/accounts.ts`); value must be a number ≥ 0; types are the 10 in `INVESTMENT_TYPES`. `groupMetric()` (`finance/overview.ts`) is the group-total `{value, partial, reason}` shared with `/v1/assets`.
+
 ## Due rule (`src/lib/finance/due.ts`, #26)
 
 An item is **due when its latest update is MORE than 30 days ago**, the same for every kind (cash account, investment, CPF, liability, receivable): 29 and 30 days are not due, 31 is. "Latest update" is the record's `updatedAt` (owner decision: no snapshot reads, so no extra queries; a rename in `PATCH /v1/accounts/{id}` also bumps `updatedAt` and resets the clock). Days are whole **calendar days in the user's `FinancialSettings.timezone`** (`Asia/Singapore` when there are no settings, UTC if the zone is unknown), between the local date of `updatedAt` and the local date of now. `Overview.asOf` is still the UTC date; only the due maths uses the user's zone. Settled liabilities/receivables and soft-deleted items are never due; only the signed-in user's own items are read.
@@ -181,8 +197,8 @@ kopi-wealth/
 ├── src/
 │   ├── config/          # Stage-aware config + secretName() helper
 │   ├── types/           # Shared DynamoDB record types (one file per entity)
-│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths); accounts.ts (shared Cash & Bank validation + writes); fx-rate.ts; finance/metric.ts, finance/convert.ts, finance/due.ts (due-for-update rule)
-│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts, v1/me.ts, v1/accounts.ts, v1/assets.ts, v1/fxRate.ts)
+│   ├── lib/             # ddb.ts, auth.ts, auth-middleware.ts, provision-user.ts, secrets.ts, session.ts, layout.ts, feature-flags.ts; finance/overview.ts (shared dashboard + /v1/overview maths); accounts.ts (shared Cash & Bank validation + writes); investments.ts (shared Investments validation + writes); fx-rate.ts; finance/metric.ts, finance/convert.ts, finance/due.ts (due-for-update rule)
+│   ├── handlers/        # Lambda handlers (one file per route; v1/auth/ = mobile sign-in; v1/overview.ts, v1/me.ts, v1/accounts.ts, v1/assets.ts, v1/fxRate.ts, v1/investments.ts)
 │   ├── repositories/    # DynamoDB access layers (one file per entity)
 │   ├── templates/       # Server-rendered HTML (excluded from coverage)
 │   ├── migrations/      # Migration scripts (ordered, idempotent)
