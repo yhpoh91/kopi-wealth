@@ -11,6 +11,7 @@ export interface SessionContext {
   sessionId: string;
   sub: string;
   role?: 'admin';
+  platform?: 'mobile';
 }
 
 export type AuthResult =
@@ -55,7 +56,7 @@ async function resolveSession(sessionId: string): Promise<SessionContext | null>
   }
 
   const user = await getUser(session.sub);
-  return { sessionId, sub: session.sub, role: user?.role };
+  return { sessionId, sub: session.sub, role: user?.role, platform: session.platform };
 }
 
 function unauthorized(): AuthResult {

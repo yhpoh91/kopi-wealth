@@ -156,6 +156,12 @@ Issue: #43. `GET /v1/me` returns the caller's own `{user:{sub, email, name?}, ac
 **New routes:** `GET /v1/me`
 **No entity or key changes.**
 
+### M-Mobile.4b — Manage Account Returns Into the App ✅
+
+Issue: #48. kopi-sso#47 now accepts a custom-scheme `return_url` whose scheme matches a registered redirect URI. `GET /v1/me` gives a mobile session `kopiwealthpreview://account` (preview) or `kopiwealth://account` (prod); web keeps `${appUrl}/`. `SessionContext` carries `platform`; `getAccountManagementUrl(returnUrl?)` caches per return URL. Owner's order: preview backend only after the preview app build handles `…://account`; prod after the prod app build.
+
+**No new routes, entity or key changes.**
+
 ### M-Mobile.5 — Due-for-Update Rule ✅
 
 Issue: #26. An item is due when its `updatedAt` is more than 30 days ago (30 is not due, 31 is), for every kind (account, investment, CPF, liability, receivable), counted in calendar days in the user's timezone. One pure function module, `src/lib/finance/due.ts`. `GET /v1/overview` fills `due[]` (`kind`, `id`, `name`, `daysSince`, `lastValue`, oldest first) and `GET /v1/assets` fills each group's `dueCount`. Settled and deleted items are never due. Owner chose `updatedAt` over snapshot times, so no extra reads.

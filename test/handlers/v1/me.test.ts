@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../src/repositories/session', () => ({ getSession: vi.fn(), renewSessionTtl: vi.fn() }));
 vi.mock('../../../src/repositories/user', () => ({ getUser: vi.fn() }));
+const cfg = vi.hoisted(() => ({ stage: 'preview' }));
+vi.mock('../../../src/config', () => ({ config: cfg }));
 vi.mock('../../../src/lib/account-management', () => ({ getAccountManagementUrl: vi.fn() }));
 
 import { handler } from '../../../src/handlers/v1/me';
@@ -23,6 +25,7 @@ const call = async (event: never = bearerEvent) => await handler(event, {} as ne
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cfg.stage = 'preview';
   vi.mocked(getSession).mockImplementation(async (id: string) => ({
     PK: `SESSION#${id}`, SK: `SESSION#${id}`, sessionId: id, sub: id === 'tok' ? 'mobileSub' : 'webSub',
     createdAt: T, ttl: 9999999999, ...(id === 'tok' ? { platform: 'mobile' as const } : {}),
@@ -32,6 +35,22 @@ beforeEach(() => {
 });
 
 describe('GET /v1/me', () => {
+  it('asks for the preview app link for a mobile caller on preview', async () => {
+    await call(bearerEvent);
+    expect(getAccountManagementUrl).toHaveBeenCalledWith('kopiwealthpreview://account');
+  });
+
+  it('asks for the prod app link for a mobile caller on prod', async () => {
+    cfg.stage = 'prod';
+    await call(bearerEvent);
+    expect(getAccountManagementUrl).toHaveBeenCalledWith('kopiwealth://account');
+  });
+
+  it('keeps the default web return URL for a cookie caller', async () => {
+    await call(cookieEvent);
+    expect(getAccountManagementUrl).toHaveBeenCalledWith(undefined);
+  });
+
   it('gives a Bearer caller their own profile and the account link, without picture or role', async () => {
     const res = await call(bearerEvent);
     expect(res.statusCode).toBe(200);

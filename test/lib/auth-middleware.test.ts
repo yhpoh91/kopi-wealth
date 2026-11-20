@@ -148,7 +148,7 @@ describe('requireSessionOrBearer — Bearer (mobile)', () => {
     mockGetSession.mockResolvedValue(mobileSession);
     mockGetUser.mockResolvedValue(user);
     const result = await requireSessionOrBearer(makeEvent(undefined, '/', { authorization: 'Bearer tok' }));
-    expect(result).toEqual({ authenticated: true, session: { sessionId: 'tok', sub: 'sub1', role: undefined } });
+    expect(result).toEqual({ authenticated: true, session: { sessionId: 'tok', sub: 'sub1', role: undefined, platform: 'mobile' } });
     expect(mockGetSession).toHaveBeenCalledWith('tok');
   });
 

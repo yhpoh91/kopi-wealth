@@ -1,17 +1,21 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+import { config } from '../../config';
 import { requireSessionOrBearer } from '../../lib/auth-middleware';
 import { getAccountManagementUrl } from '../../lib/account-management';
 import { json } from '../../lib/json';
 import { getUser } from '../../repositories/user';
 
+// kopi-sso accepts a custom-scheme return_url when it matches a registered redirect URI scheme (kopi-sso#47).
+const appReturnUrl = () => `${config.stage === 'prod' ? 'kopiwealth' : 'kopiwealthpreview'}://account`;
+
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const auth = await requireSessionOrBearer(event);
   if (!auth.authenticated) return auth.response;
-  const { sub } = auth.session;
+  const { sub, platform } = auth.session;
 
   try {
     // Only the caller's own USER#<sub> record; picture and role are never returned.
-    const [user, accountManagementUrl] = await Promise.all([getUser(sub), getAccountManagementUrl()]);
+    const [user, accountManagementUrl] = await Promise.all([getUser(sub), getAccountManagementUrl(platform === 'mobile' ? appReturnUrl() : undefined)]);
     if (!user) return json(404, { error: 'not_found' });
 
     return json(200, {

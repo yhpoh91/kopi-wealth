@@ -95,4 +95,21 @@ describe('getAccountManagementUrl', () => {
     await getAccountManagementUrl();
     expect(mockFetch()).toHaveBeenCalledTimes(1);
   });
+
+  it('caches per return URL and keeps the web default', async () => {
+    mockFetch().mockResolvedValue({
+      ok: true,
+      json: async () => ({ account_management_uri: 'https://sso.example.com/account' }),
+    } as Response);
+
+    const web = await getAccountManagementUrl();
+    const app = await getAccountManagementUrl('kopiwealth://account');
+    expect(web).toContain('return_url=https%3A%2F%2Fwealth.example.com%2F');
+    expect(app).toContain('return_url=kopiwealth%3A%2F%2Faccount');
+    expect(mockFetch()).toHaveBeenCalledTimes(2);
+
+    expect(await getAccountManagementUrl()).toBe(web);
+    expect(await getAccountManagementUrl('kopiwealth://account')).toBe(app);
+    expect(mockFetch()).toHaveBeenCalledTimes(2);
+  });
 });
