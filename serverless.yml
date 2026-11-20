@@ -170,6 +170,26 @@ functions:
           method: POST
           path: /v1/accounts/{id}/balance
 
+  v1Investments:
+    handler: src/handlers/v1/investments.handler
+    name: wealth-${self:provider.stage}-v1-investments
+    events:
+      - httpApi:
+          method: GET
+          path: /v1/investments
+      - httpApi:
+          method: POST
+          path: /v1/investments
+      - httpApi:
+          method: PATCH
+          path: /v1/investments/{id}
+      - httpApi:
+          method: DELETE
+          path: /v1/investments/{id}
+      - httpApi:
+          method: POST
+          path: /v1/investments/{id}/value
+
   v1FxRate:
     handler: src/handlers/v1/fxRate.handler
     name: wealth-${self:provider.stage}-v1-fx-rate

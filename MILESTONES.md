@@ -168,6 +168,15 @@ Issue: #26. An item is due when its `updatedAt` is more than 30 days ago (30 is 
 
 **No new routes, entity or key changes.** `Overview` gains `due`.
 
+### M-Mobile.6 — Investments JSON API ✅
+
+Issue: #27. Design: [`docs/M-Mobile-6-investments-api.md`](docs/M-Mobile-6-investments-api.md)
+
+List (grouped by type with totals and shares), create, edit details, update value and soft-delete investments over JSON. Each holding carries `changeSinceLast` (from the two newest `InvestmentSnapshot`s) and `due`/`daysSince` (the #26 rule). Validation and writes moved into `src/lib/investments.ts`, shared with the web `/investments` handler; web and app records are identical (tested). The Investments total equals the `/v1/assets` Investments group total (tested).
+
+**New routes:** `GET|POST /v1/investments`, `PATCH|DELETE /v1/investments/{id}`, `POST /v1/investments/{id}/value`
+**No entity or key changes.**
+
 ---
 
 ## M-Income — Income Sources ⬜
